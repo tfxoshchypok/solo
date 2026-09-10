@@ -1,0 +1,14 @@
+dist/
+bin/
+coverage/
+node_modules/
+extensions/
+package-lock.json
+
+# Downloaded Neutralino client, plus the app icons
+resources/
+
+# Spec-kit artefacts are authored by hand; Prettier must not reflow them
+specs/
+.specify/
+.claude/

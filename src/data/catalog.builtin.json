@@ -1,0 +1,223 @@
+{
+  "catalogVersion": "2026.09.1",
+  "categories": [
+    {
+      "id": "kitchen",
+      "name": "Кухня",
+      "nameEn": "Kitchen",
+      "order": 1
+    },
+    {
+      "id": "laundry",
+      "name": "Прання",
+      "nameEn": "Laundry",
+      "order": 2
+    },
+    {
+      "id": "water-heating",
+      "name": "Нагрів води",
+      "nameEn": "Water heating",
+      "order": 3
+    },
+    {
+      "id": "climate",
+      "name": "Опалення та кондиціювання",
+      "nameEn": "Space heating & cooling",
+      "order": 4
+    },
+    {
+      "id": "lighting",
+      "name": "Освітлення",
+      "nameEn": "Lighting",
+      "order": 5
+    },
+    {
+      "id": "av",
+      "name": "Аудіо та відео",
+      "nameEn": "Audio / video",
+      "order": 6
+    },
+    {
+      "id": "office",
+      "name": "Офіс та ІТ",
+      "nameEn": "Office / IT",
+      "order": 7
+    },
+    {
+      "id": "pumps",
+      "name": "Насоси та інженерні системи",
+      "nameEn": "Pumps & utilities",
+      "order": 8
+    },
+    {
+      "id": "workshop",
+      "name": "Майстерня та сад",
+      "nameEn": "Workshop & garden",
+      "order": 9
+    },
+    {
+      "id": "ev",
+      "name": "Заряджання транспорту",
+      "nameEn": "Vehicle charging",
+      "order": 10
+    },
+    {
+      "id": "misc",
+      "name": "Розетки та інше",
+      "nameEn": "Sockets & misc",
+      "order": 11
+    }
+  ],
+  "types": [
+    {
+      "id": "fridge-16-20",
+      "name": "Холодильник, 16–20 куб. футів",
+      "nameEn": "Refrigerator, 16–20 cu. ft.",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "freezer-chest",
+      "name": "Морозильна скриня",
+      "nameEn": "Chest freezer",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "induction-hob",
+      "name": "Індукційна варильна поверхня",
+      "nameEn": "Induction hob",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "electric-oven",
+      "name": "Електрична духова шафа",
+      "nameEn": "Electric oven",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "microwave",
+      "name": "Мікрохвильова піч",
+      "nameEn": "Microwave oven",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "dishwasher",
+      "name": "Посудомийна машина",
+      "nameEn": "Dishwasher",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "electric-kettle",
+      "name": "Електрочайник",
+      "nameEn": "Electric kettle",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "coffee-machine",
+      "name": "Кавомашина",
+      "nameEn": "Coffee machine",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "extractor-hood",
+      "name": "Кухонна витяжка",
+      "nameEn": "Extractor hood",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "food-waste-disposer",
+      "name": "Подрібнювач харчових відходів",
+      "nameEn": "Food waste disposer",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "washing-machine",
+      "name": "Пральна машина",
+      "nameEn": "Washing machine",
+      "categoryId": "laundry"
+    },
+    {
+      "id": "tumble-dryer",
+      "name": "Сушильна машина",
+      "nameEn": "Electric clothes dryer",
+      "categoryId": "laundry"
+    },
+    {
+      "id": "washer-dryer",
+      "name": "Пральна машина з сушкою",
+      "nameEn": "Washer-dryer",
+      "categoryId": "laundry"
+    },
+    {
+      "id": "iron",
+      "name": "Праска",
+      "nameEn": "Iron",
+      "categoryId": "laundry"
+    },
+    {
+      "id": "storage-water-heater",
+      "name": "Бойлер накопичувальний",
+      "nameEn": "Storage water heater",
+      "categoryId": "water-heating"
+    },
+    {
+      "id": "instantaneous-water-heater",
+      "name": "Проточний водонагрівач",
+      "nameEn": "Instantaneous water heater",
+      "categoryId": "water-heating"
+    },
+    {
+      "id": "heat-pump-water-heater",
+      "name": "Водонагрівач із тепловим насосом",
+      "nameEn": "Heat-pump water heater",
+      "categoryId": "water-heating"
+    },
+    {
+      "id": "led-downlight",
+      "name": "Світлодіодний світильник, еквівалент 60 Вт",
+      "nameEn": "LED downlight, 60 W equivalent",
+      "categoryId": "lighting"
+    },
+    {
+      "id": "led-strip",
+      "name": "Світлодіодна лінійка, 5 м",
+      "nameEn": "LED strip, 5 m",
+      "categoryId": "lighting"
+    },
+    {
+      "id": "incandescent-lamp",
+      "name": "Лампа розжарювання, 100 Вт",
+      "nameEn": "Incandescent lamp, 100 W",
+      "categoryId": "lighting"
+    },
+    {
+      "id": "halogen-fixture",
+      "name": "Галогенний світильник, 50 Вт",
+      "nameEn": "Halogen fixture, 50 W",
+      "categoryId": "lighting"
+    },
+    {
+      "id": "outdoor-lighting",
+      "name": "Зовнішнє освітлення",
+      "nameEn": "Outdoor lighting fixture",
+      "categoryId": "lighting"
+    },
+    {
+      "id": "ev-charger-1p",
+      "name": "Зарядна станція для електромобіля, однофазна",
+      "nameEn": "EV charger, single-phase",
+      "categoryId": "ev"
+    },
+    {
+      "id": "ev-charger-3p",
+      "name": "Зарядна станція для електромобіля, трифазна",
+      "nameEn": "EV charger, three-phase",
+      "categoryId": "ev"
+    },
+    {
+      "id": "ev-charger-portable",
+      "name": "Портативний зарядний пристрій для електромобіля",
+      "nameEn": "Portable EV charger",
+      "categoryId": "ev"
+    }
+  ]
+}

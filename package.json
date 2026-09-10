@@ -1,0 +1,49 @@
+{
+  "name": "eltree",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Electrical Consumer Tree Editor — local-first NeutralinoJS desktop app",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "neu:dev": "neu run",
+    "neu:build": "vite build && neu build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@neutralinojs/lib": "6.9.0",
+    "@vee-validate/valibot": "4.15.1",
+    "@vicons/ionicons5": "0.13.0",
+    "@vueuse/core": "14.4.0",
+    "fuse.js": "7.5.0",
+    "immer": "11.1.18",
+    "naive-ui": "2.45.3",
+    "pinia": "4.0.3",
+    "valibot": "1.4.2",
+    "vee-validate": "4.15.1",
+    "vue": "3.5.42",
+    "vue-router": "5.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@neutralinojs/neu": "11.7.2",
+    "@valibot/to-json-schema": "1.7.1",
+    "@vitejs/plugin-vue": "6.0.8",
+    "@vitest/coverage-v8": "5.0.0",
+    "@vue/test-utils": "2.5.0",
+    "eslint": "10.10.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-vue": "10.11.0",
+    "fast-check": "4.9.0",
+    "happy-dom": "20.14.0",
+    "prettier": "3.9.6",
+    "vite": "8.2.2",
+    "vitest": "5.0.0"
+  }
+}

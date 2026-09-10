@@ -1,0 +1,22 @@
+node_modules/
+dist/
+coverage/
+
+# Neutralino binaries and client library, fetched by `npx neu update`
+bin/
+.tmp/
+
+# Neutralino runtime output
+.storage/
+neutralino.log
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+.idea/
+
+# Neutralino client library, fetched by `npx neu update` into the publicDir
+resources/neutralino.js
+resources/neutralino.d.ts

@@ -1,0 +1,59 @@
+/* Base reset and the app-shell layout variables.
+   Colours stay with Naive UI's theme; only geometry and the two neutral surfaces live here,
+   so a theme switch does not have to fight this file. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden; /* the window is the viewport; panes scroll, the shell does not */
+}
+
+:root {
+  /* App shell geometry — AppLayout.vue reads these */
+  --app-sidebar-width: 220px;
+  --app-sidebar-width-collapsed: 56px;
+  --app-toolbar-height: 48px;
+  --app-drawer-width: 420px;
+  --app-inspector-width: 340px;
+  --app-gutter: 12px;
+
+  /* Tree canvas — n-tree needs a fixed row height for virtualScroll (FR-037) */
+  --tree-node-height: 30px;
+  --tree-indent: 20px;
+}
+
+/* Neutral surfaces, overridden under the dark theme by the [data-theme] switch in ui.js */
+:root {
+  --app-bg: #ffffff;
+  --app-bg-subtle: #fafafc;
+  --app-border: #efeff5;
+}
+
+:root[data-theme='dark'] {
+  --app-bg: #18181c;
+  --app-bg-subtle: #101014;
+  --app-border: #2d2d30;
+}
+
+/* Long names in the tree and in the inspector truncate rather than reflow the layout */
+.app-ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

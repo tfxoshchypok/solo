@@ -1,0 +1,53 @@
+{
+  "$schema": "https://raw.githubusercontent.com/neutralinojs/neutralinojs/main/schemas/neutralino.config.schema.json",
+  "applicationId": "ua.eltree.editor",
+  "version": "0.1.0",
+  "defaultMode": "window",
+  "port": 0,
+  "documentRoot": "/dist/",
+  "url": "/",
+  "enableServer": true,
+  "enableNativeAPI": true,
+  "tokenSecurity": "one-time",
+  "storageLocation": "system",
+  "logging": {
+    "enabled": true,
+    "writeToLogFile": true
+  },
+  "nativeAllowList": [
+    "app.*",
+    "os.*",
+    "filesystem.*",
+    "storage.*",
+    "window.*",
+    "events.*",
+    "debug.log"
+  ],
+  "modes": {
+    "window": {
+      "title": "Дерево електроспоживачів",
+      "width": 1200,
+      "height": 800,
+      "minWidth": 900,
+      "minHeight": 600,
+      "center": true,
+      "resizable": true,
+      "exitProcessOnClose": true
+    }
+  },
+  "cli": {
+    "binaryName": "eltree",
+    "resourcesPath": "/dist/",
+    "extensionsPath": "/extensions/",
+    "clientLibrary": "/resources/neutralino.js",
+    "binaryVersion": "6.9.0",
+    "clientVersion": "6.9.0",
+    "frontendLibrary": {
+      "devCommand": "npm run dev",
+      "devUrl": "http://localhost:5173",
+      "projectPath": "./",
+      "patchFile": "/index.html",
+      "waitTimeout": 30000
+    }
+  }
+}
