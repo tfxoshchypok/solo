@@ -305,7 +305,7 @@ Done 2026-09-13. 22 more tests; the suite is 245 across 27 files, `npx eslint .`
 
 - [X] T066 Ask before closing a dirty project per FR-031 (partial) — T062 made the close flush the pending autosave, but a window with unsaved work still closed without a word, leaving the work only in the sidecar. `tests/unit/services/closeGuard.test.js` already held the intended behaviour and was red: `decideExit` did not exist, and `createCloseHandler` ignored `beforeExit`. Add `decideExit` (clean → close; save / don't save / cancel for a dirty project), let `beforeExit` keep the window open, and wire a three-button prompt into the editor
 
-Done 2026-09-23. The suite is 259 across 27 files, `npx eslint .`, `npx prettier --check .` and
+Done 2026-09-23. The suite is 261 across 27 files, `npx eslint .`, `npx prettier --check .` and
 `npm run build` clean. All three buttons checked by hand in the Neutralino window.
 
 - **The decision is registered, not imported** (`setExitDecision` in `src/services/closeGuard.js`):
@@ -316,7 +316,9 @@ Done 2026-09-23. The suite is 259 across 27 files, `npx eslint .`, `npx prettier
   `null`, a failed write throws — both return false, and the failure is reported in the editor.
 - **"Don't save" cancels the queued autosave first** (`discardUnsaved` in `src/stores/project.js`):
   the handler flushes after the decision, and a write still waiting out its 400 ms would put back
-  the sidecar that was just removed. The tests did not catch this; it has no test of its own yet.
+  the sidecar that was just removed. The tests did not catch this at first; two tests in
+  `tests/unit/stores/project.test.js` now hold it, for a saved project and for one that never had
+  a file, and both fail with the cancel removed.
 - **Every dismissal other than a button is "cancel"** (`src/composables/useExitPrompt.js`): Escape,
   the mask and the close icon keep the window open, because closing is the step that cannot be
   taken back.

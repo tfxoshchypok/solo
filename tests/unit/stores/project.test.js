@@ -149,6 +149,36 @@ describe('unsaved work (FR-031)', () => {
     expect(tree.nodeCount).toBe(1)
     expect(await project.findRecovery(PATH)).toBe(null)
   })
+
+  // "Don't save" on close is followed by the close handler's flush. A change still waiting out the
+  // debounce must not survive that flush, or the next launch offers what the user just declined.
+  it('choosing not to save leaves no sidecar behind, even with a change still queued', async () => {
+    const project = useProjectStore()
+    const tree = useTreeStore()
+    await project.saveAs()
+    tree.add({ parentId: tree.rootId, kind: 'panel', name: 'Кухня' })
+    await ProjectFileService.flushAutosave()
+    tree.add({ parentId: tree.rootId, kind: 'panel', name: 'Ванна' })
+
+    await project.discardUnsaved()
+    await ProjectFileService.flushAutosave()
+
+    expect(await project.findRecovery(PATH)).toBe(null)
+  })
+
+  it('choosing not to save a project that never had a file drops its sidecar too', async () => {
+    const project = useProjectStore()
+    const tree = useTreeStore()
+    tree.add({ parentId: tree.rootId, kind: 'panel', name: 'Кухня' })
+    await ProjectFileService.flushAutosave()
+    expect(await project.findRecovery(null)).not.toBe(null)
+    tree.add({ parentId: tree.rootId, kind: 'panel', name: 'Ванна' })
+
+    await project.discardUnsaved()
+    await ProjectFileService.flushAutosave()
+
+    expect(await project.findRecovery(null)).toBe(null)
+  })
 })
 
 describe('the native dialogs stay behind the adapter', () => {
