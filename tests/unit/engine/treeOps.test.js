@@ -9,6 +9,9 @@ import {
   moveNode,
   reorderSibling,
   renameNode,
+  setNote,
+  setQuantity,
+  wrapChildrenInPanel,
   descendantIds,
   depthOf,
   isDescendantOf,
@@ -67,10 +70,10 @@ describe('treeOps.addNode (FR-006)', () => {
       parentId: 'root',
       kind: 'consumer',
       name: 'Холодильник',
-      typeId: 'fridge-16-20',
+      typeId: 'fridge',
       typeName: 'Холодильник',
     })
-    expect(next[nodeId]).toMatchObject({ typeId: 'fridge-16-20', quantity: 1, childIds: [] })
+    expect(next[nodeId]).toMatchObject({ typeId: 'fridge', quantity: 1, childIds: [] })
   })
 
   it('builds a consumer that satisfies ConsumerNodeSchema, not one the schema rejects', () => {
@@ -79,7 +82,7 @@ describe('treeOps.addNode (FR-006)', () => {
       parentId: 'root',
       kind: 'consumer',
       name: 'Холодильник',
-      typeId: 'fridge-16-20',
+      typeId: 'fridge',
       typeName: 'Холодильник',
     })
     expect(v.safeParse(ConsumerNodeSchema, next[nodeId]).success).toBe(true)
@@ -148,7 +151,7 @@ describe('treeOps.addNode guards the fields the schema requires', () => {
       parentId: rootId,
       kind: 'consumer',
       name: 'Холодильник',
-      typeId: 'fridge-16-20',
+      typeId: 'fridge',
       typeName: 'Холодильник',
     })
     expect(next[nodeId].typeName).toBe('Холодильник')
@@ -157,7 +160,9 @@ describe('treeOps.addNode guards the fields the schema requires', () => {
   it('refuses a blank name on any kind, which ProjectSchema would reject at save time', () => {
     const { nodes, rootId } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
     expect(() => addNode(nodes, { parentId: rootId, kind: 'panel', name: '' })).toThrow(RuleError)
-    expect(() => addNode(nodes, { parentId: rootId, kind: 'panel', name: '   ' })).toThrow(RuleError)
+    expect(() => addNode(nodes, { parentId: rootId, kind: 'panel', name: '   ' })).toThrow(
+      RuleError,
+    )
   })
 })
 
@@ -287,11 +292,86 @@ describe('treeOps.reorderSibling (FR-006)', () => {
 })
 
 describe('treeOps.renameNode', () => {
-  it('changes only the name', () => {
+  it('changes the name of that node and of nothing else (FR-006, FR-024)', () => {
     const { nodes } = twoPanelsWithConsumers()
     const next = renameNode(nodes, 'p2', 'Кухня — розетки')
     expect(next.p2.name).toBe('Кухня — розетки')
     expect(next.p2.childIds).toEqual(nodes.p2.childIds)
+    // immer keeps untouched nodes as the same object, which is the strongest form of "unaffected".
+    expect(next.p1).toBe(nodes.p1)
+    expect(next.root).toBe(nodes.root)
+  })
+})
+
+describe('treeOps.setNote (FR-012)', () => {
+  it('attaches a note to any kind and leaves everything else alone', () => {
+    const { nodes } = twoPanelsWithConsumers()
+    const next = setNote(nodes, 'p2', 'узгодити з замовником')
+    expect(next.p2.note).toBe('узгодити з замовником')
+    expect(next.p2.name).toBe('Кухня')
+    expect(next.p2.childIds).toEqual(nodes.p2.childIds)
+  })
+
+  it('an empty note drops the field rather than storing an empty string', () => {
+    const { nodes } = twoPanelsWithConsumers()
+    const withNote = setNote(nodes, 'p2', 'тимчасово')
+    const cleared = setNote(withNote, 'p2', '   ')
+    expect('note' in cleared.p2).toBe(false)
+  })
+})
+
+describe('treeOps.wrapChildrenInPanel (FR-016)', () => {
+  it('moves every existing child into a new panel, in one legal step', () => {
+    const { nodes } = twoPanelsWithConsumers()
+    const { nodes: next, nodeId } = wrapChildrenInPanel(nodes, 'p2', 'Освітлення')
+    expect(next.p2.childIds).toEqual([nodeId])
+    expect(next.p2.childrenKind).toBe('panels')
+    expect(next[nodeId].childIds).toEqual(['c1', 'c2'])
+    expect(next[nodeId].childrenKind).toBe('consumers')
+    expect(next.c1.parentId).toBe(nodeId)
+  })
+
+  it('refuses to wrap when the panel already holds panels — there is nothing to fix', () => {
+    const { nodes } = twoPanelsWithConsumers()
+    expect(() => wrapChildrenInPanel(nodes, 'p1', 'Нова група')).toThrow(RuleError)
+  })
+
+  it('refuses to wrap an empty panel, which can take a panel child directly', () => {
+    const { nodes } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
+    expect(() => wrapChildrenInPanel(nodes, 'root', 'Група')).toThrow(RuleError)
+  })
+
+  it('keeps the depth guard: wrapping adds a level (FR-007)', () => {
+    const { nodes } = panelChain(MAX_PANEL_DEPTH)
+    const withConsumer = addNode(nodes, {
+      parentId: `p${MAX_PANEL_DEPTH}`,
+      kind: 'consumer',
+      name: 'Лампа',
+      typeId: 'lamp',
+      typeName: 'Світильник',
+    }).nodes
+    expect(() => wrapChildrenInPanel(withConsumer, `p${MAX_PANEL_DEPTH}`, 'Група')).toThrow(
+      RuleError,
+    )
+  })
+})
+
+describe('treeOps.setQuantity (FR-025)', () => {
+  it('sets how many identical units the node stands for', () => {
+    const { nodes } = twoPanelsWithConsumers()
+    expect(setQuantity(nodes, 'c1', 8).c1.quantity).toBe(8)
+  })
+
+  it('refuses zero, a fraction and a negative — the schema requires an integer of at least 1', () => {
+    const { nodes } = twoPanelsWithConsumers()
+    for (const bad of [0, -3, 2.5]) {
+      expect(() => setQuantity(nodes, 'c1', bad)).toThrow(RuleError)
+    }
+  })
+
+  it('refuses a quantity on a panel, which stands for nothing countable', () => {
+    const { nodes } = twoPanelsWithConsumers()
+    expect(() => setQuantity(nodes, 'p2', 2)).toThrow(RuleError)
   })
 })
 

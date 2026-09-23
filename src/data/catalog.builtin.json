@@ -70,9 +70,9 @@
   ],
   "types": [
     {
-      "id": "fridge-16-20",
-      "name": "Холодильник, 16–20 куб. футів",
-      "nameEn": "Refrigerator, 16–20 cu. ft.",
+      "id": "fridge",
+      "name": "Холодильник",
+      "nameEn": "Refrigerator",
       "categoryId": "kitchen"
     },
     {
@@ -130,6 +130,42 @@
       "categoryId": "kitchen"
     },
     {
+      "id": "toaster",
+      "name": "Тостер",
+      "nameEn": "Toaster",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "blender",
+      "name": "Блендер",
+      "nameEn": "Blender",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "food-processor",
+      "name": "Кухонний комбайн",
+      "nameEn": "Food processor",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "multicooker",
+      "name": "Мультиварка",
+      "nameEn": "Multicooker",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "electric-grill",
+      "name": "Електрогриль",
+      "nameEn": "Electric grill",
+      "categoryId": "kitchen"
+    },
+    {
+      "id": "wine-cooler",
+      "name": "Винний шаф-холодильник",
+      "nameEn": "Wine cooler",
+      "categoryId": "kitchen"
+    },
+    {
       "id": "washing-machine",
       "name": "Пральна машина",
       "nameEn": "Washing machine",
@@ -154,6 +190,18 @@
       "categoryId": "laundry"
     },
     {
+      "id": "drying-cabinet",
+      "name": "Сушильна шафа",
+      "nameEn": "Drying cabinet",
+      "categoryId": "laundry"
+    },
+    {
+      "id": "steam-generator",
+      "name": "Парогенератор",
+      "nameEn": "Steam generator",
+      "categoryId": "laundry"
+    },
+    {
       "id": "storage-water-heater",
       "name": "Бойлер накопичувальний",
       "nameEn": "Storage water heater",
@@ -172,27 +220,99 @@
       "categoryId": "water-heating"
     },
     {
+      "id": "undersink-water-heater",
+      "name": "Водонагрівач під мийку",
+      "nameEn": "Undersink water heater",
+      "categoryId": "water-heating"
+    },
+    {
+      "id": "steam-shower-generator",
+      "name": "Парогенератор душової кабіни",
+      "nameEn": "Steam shower generator",
+      "categoryId": "water-heating"
+    },
+    {
+      "id": "electric-convector",
+      "name": "Електричний конвектор",
+      "nameEn": "Electric convector",
+      "categoryId": "climate"
+    },
+    {
+      "id": "underfloor-heating",
+      "name": "Контур теплої підлоги",
+      "nameEn": "Underfloor heating loop",
+      "categoryId": "climate"
+    },
+    {
+      "id": "heat-pump",
+      "name": "Тепловий насос",
+      "nameEn": "Heat pump",
+      "categoryId": "climate"
+    },
+    {
+      "id": "split-air-conditioner",
+      "name": "Спліт-система",
+      "nameEn": "Split air conditioner",
+      "categoryId": "climate"
+    },
+    {
+      "id": "towel-rail",
+      "name": "Електрична рушникосушка",
+      "nameEn": "Electric towel rail",
+      "categoryId": "climate"
+    },
+    {
+      "id": "ceiling-fan",
+      "name": "Стельовий вентилятор",
+      "nameEn": "Ceiling fan",
+      "categoryId": "climate"
+    },
+    {
+      "id": "oil-radiator",
+      "name": "Масляний радіатор",
+      "nameEn": "Oil-filled radiator",
+      "categoryId": "climate"
+    },
+    {
+      "id": "fan-heater",
+      "name": "Тепловентилятор",
+      "nameEn": "Fan heater",
+      "categoryId": "climate"
+    },
+    {
+      "id": "infrared-heater",
+      "name": "Інфрачервоний обігрівач",
+      "nameEn": "Infrared heater",
+      "categoryId": "climate"
+    },
+    {
+      "id": "bathroom-fan",
+      "name": "Витяжний вентилятор",
+      "nameEn": "Bathroom extract fan",
+      "categoryId": "climate"
+    },
+    {
       "id": "led-downlight",
-      "name": "Світлодіодний світильник, еквівалент 60 Вт",
-      "nameEn": "LED downlight, 60 W equivalent",
+      "name": "Світлодіодний світильник",
+      "nameEn": "LED downlight",
       "categoryId": "lighting"
     },
     {
       "id": "led-strip",
-      "name": "Світлодіодна лінійка, 5 м",
-      "nameEn": "LED strip, 5 m",
+      "name": "Світлодіодна лінійка",
+      "nameEn": "LED strip",
       "categoryId": "lighting"
     },
     {
       "id": "incandescent-lamp",
-      "name": "Лампа розжарювання, 100 Вт",
-      "nameEn": "Incandescent lamp, 100 W",
+      "name": "Лампа розжарювання",
+      "nameEn": "Incandescent lamp",
       "categoryId": "lighting"
     },
     {
       "id": "halogen-fixture",
-      "name": "Галогенний світильник, 50 Вт",
-      "nameEn": "Halogen fixture, 50 W",
+      "name": "Галогенний світильник",
+      "nameEn": "Halogen fixture",
       "categoryId": "lighting"
     },
     {
@@ -200,6 +320,192 @@
       "name": "Зовнішнє освітлення",
       "nameEn": "Outdoor lighting fixture",
       "categoryId": "lighting"
+    },
+    {
+      "id": "led-panel",
+      "name": "Світлодіодна панель",
+      "nameEn": "LED panel",
+      "categoryId": "lighting"
+    },
+    {
+      "id": "track-light",
+      "name": "Трековий світильник",
+      "nameEn": "Track light",
+      "categoryId": "lighting"
+    },
+    {
+      "id": "wall-sconce",
+      "name": "Бра",
+      "nameEn": "Wall sconce",
+      "categoryId": "lighting"
+    },
+    {
+      "id": "illuminated-mirror",
+      "name": "Дзеркало з підсвіткою",
+      "nameEn": "Illuminated mirror",
+      "categoryId": "lighting"
+    },
+    {
+      "id": "television",
+      "name": "Телевізор",
+      "nameEn": "Television",
+      "categoryId": "av"
+    },
+    {
+      "id": "set-top-box",
+      "name": "ТВ-приставка",
+      "nameEn": "Set-top box",
+      "categoryId": "av"
+    },
+    {
+      "id": "game-console",
+      "name": "Ігрова консоль",
+      "nameEn": "Game console",
+      "categoryId": "av"
+    },
+    {
+      "id": "av-receiver",
+      "name": "AV-ресивер",
+      "nameEn": "AV receiver",
+      "categoryId": "av"
+    },
+    {
+      "id": "projector",
+      "name": "Проєктор",
+      "nameEn": "Projector",
+      "categoryId": "av"
+    },
+    {
+      "id": "soundbar",
+      "name": "Саундбар",
+      "nameEn": "Soundbar",
+      "categoryId": "av"
+    },
+    {
+      "id": "desktop-computer",
+      "name": "Настільний компʼютер",
+      "nameEn": "Desktop computer",
+      "categoryId": "office"
+    },
+    {
+      "id": "gaming-computer",
+      "name": "Ігровий компʼютер",
+      "nameEn": "Gaming computer",
+      "categoryId": "office"
+    },
+    {
+      "id": "laptop",
+      "name": "Ноутбук",
+      "nameEn": "Laptop",
+      "categoryId": "office"
+    },
+    {
+      "id": "monitor",
+      "name": "Монітор",
+      "nameEn": "Monitor",
+      "categoryId": "office"
+    },
+    {
+      "id": "printer",
+      "name": "Принтер",
+      "nameEn": "Printer",
+      "categoryId": "office"
+    },
+    {
+      "id": "router",
+      "name": "Роутер",
+      "nameEn": "Router",
+      "categoryId": "office"
+    },
+    {
+      "id": "network-storage",
+      "name": "Мережеве сховище",
+      "nameEn": "Network storage",
+      "categoryId": "office"
+    },
+    {
+      "id": "ups",
+      "name": "Джерело безперебійного живлення",
+      "nameEn": "Uninterruptible power supply",
+      "categoryId": "office"
+    },
+    {
+      "id": "well-pump",
+      "name": "Свердловинний насос",
+      "nameEn": "Well pump",
+      "categoryId": "pumps"
+    },
+    {
+      "id": "circulation-pump",
+      "name": "Циркуляційний насос",
+      "nameEn": "Circulation pump",
+      "categoryId": "pumps"
+    },
+    {
+      "id": "booster-pump",
+      "name": "Підвищувальний насос",
+      "nameEn": "Booster pump",
+      "categoryId": "pumps"
+    },
+    {
+      "id": "sump-pump",
+      "name": "Дренажний насос",
+      "nameEn": "Sump pump",
+      "categoryId": "pumps"
+    },
+    {
+      "id": "ventilation-unit",
+      "name": "Вентиляційна установка",
+      "nameEn": "Ventilation unit",
+      "categoryId": "pumps"
+    },
+    {
+      "id": "heat-recovery-unit",
+      "name": "Рекуператор",
+      "nameEn": "Heat recovery unit",
+      "categoryId": "pumps"
+    },
+    {
+      "id": "drill",
+      "name": "Дриль",
+      "nameEn": "Drill",
+      "categoryId": "workshop"
+    },
+    {
+      "id": "circular-saw",
+      "name": "Циркулярна пила",
+      "nameEn": "Circular saw",
+      "categoryId": "workshop"
+    },
+    {
+      "id": "bench-grinder",
+      "name": "Точильний верстат",
+      "nameEn": "Bench grinder",
+      "categoryId": "workshop"
+    },
+    {
+      "id": "air-compressor",
+      "name": "Компресор",
+      "nameEn": "Air compressor",
+      "categoryId": "workshop"
+    },
+    {
+      "id": "lawn-mower",
+      "name": "Газонокосарка",
+      "nameEn": "Lawn mower",
+      "categoryId": "workshop"
+    },
+    {
+      "id": "hedge-trimmer",
+      "name": "Кущоріз",
+      "nameEn": "Hedge trimmer",
+      "categoryId": "workshop"
+    },
+    {
+      "id": "welding-machine",
+      "name": "Зварювальний апарат",
+      "nameEn": "Welding machine",
+      "categoryId": "workshop"
     },
     {
       "id": "ev-charger-1p",
@@ -218,6 +524,72 @@
       "name": "Портативний зарядний пристрій для електромобіля",
       "nameEn": "Portable EV charger",
       "categoryId": "ev"
+    },
+    {
+      "id": "socket-group",
+      "name": "Розеткова група",
+      "nameEn": "General socket group",
+      "categoryId": "misc"
+    },
+    {
+      "id": "vacuum-cleaner",
+      "name": "Пилосос",
+      "nameEn": "Vacuum cleaner",
+      "categoryId": "misc"
+    },
+    {
+      "id": "robot-vacuum",
+      "name": "Робот-пилосос",
+      "nameEn": "Robot vacuum",
+      "categoryId": "misc"
+    },
+    {
+      "id": "hair-dryer",
+      "name": "Фен",
+      "nameEn": "Hair dryer",
+      "categoryId": "misc"
+    },
+    {
+      "id": "dehumidifier",
+      "name": "Осушувач повітря",
+      "nameEn": "Dehumidifier",
+      "categoryId": "misc"
+    },
+    {
+      "id": "humidifier",
+      "name": "Зволожувач повітря",
+      "nameEn": "Humidifier",
+      "categoryId": "misc"
+    },
+    {
+      "id": "air-purifier",
+      "name": "Очищувач повітря",
+      "nameEn": "Air purifier",
+      "categoryId": "misc"
+    },
+    {
+      "id": "charger-group",
+      "name": "Група зарядних пристроїв",
+      "nameEn": "Small charger group",
+      "categoryId": "misc"
+    },
+    {
+      "id": "shoe-dryer",
+      "name": "Сушарка для взуття",
+      "nameEn": "Shoe dryer",
+      "categoryId": "misc"
+    },
+    {
+      "id": "whirlpool-bath",
+      "name": "Гідромасажна ванна",
+      "nameEn": "Whirlpool bath",
+      "categoryId": "misc"
+    },
+    {
+      "id": "hand-dryer",
+      "name": "Сушарка для рук",
+      "nameEn": "Hand dryer",
+      "categoryId": "misc"
     }
   ]
 }

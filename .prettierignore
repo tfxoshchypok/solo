@@ -12,3 +12,6 @@ resources/
 specs/
 .specify/
 .claude/
+
+# Projects saved from the app while testing — user data, not source
+projects/

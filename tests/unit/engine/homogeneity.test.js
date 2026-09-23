@@ -46,7 +46,7 @@ const panelHoldingConsumers = () =>
   })
 
 describe('homogeneity.childrenKindAfter', () => {
-  it('reports undecided for a childless panel (FR-018)', () => {
+  it('reports undecided for a childless panel, which is a legal state (FR-005, FR-018)', () => {
     const { nodes } = emptyPanel()
     expect(childrenKindAfter(nodes, 'p1')).toBe('undecided')
   })
@@ -69,7 +69,7 @@ describe('homogeneity.childrenKindAfter', () => {
 })
 
 describe('homogeneity.canAccept', () => {
-  it('accepts either kind under an undecided panel', () => {
+  it('accepts either kind under an undecided panel (FR-005)', () => {
     const { nodes } = emptyPanel()
     expect(canAccept(nodes, 'p1', 'panel').ok).toBe(true)
     expect(canAccept(nodes, 'p1', 'consumer').ok).toBe(true)

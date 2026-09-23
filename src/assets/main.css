@@ -38,6 +38,20 @@ body {
   --tree-indent: 20px;
 }
 
+/* Tree surfaces. Separate from --app-border because a guide line has to be visible against the
+   row background, while a pane border has to disappear into it. */
+:root {
+  --tree-guide: #d6d6e0;
+  --tree-branch-bg: #f1f4fb;
+  --tree-branch-border: #b9c6e8;
+}
+
+:root[data-theme='dark'] {
+  --tree-guide: #3c3c44;
+  --tree-branch-bg: #1e2430;
+  --tree-branch-border: #3c4a66;
+}
+
 /* Neutral surfaces, overridden under the dark theme by the [data-theme] switch in ui.js */
 :root {
   --app-bg: #ffffff;

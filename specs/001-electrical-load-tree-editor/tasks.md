@@ -84,21 +84,32 @@ enforced at the moment of the attempt.
 **Independent test**: create a project, build entry → main panel → 2 sub-panels, drag a subtree, delete
 a panel with descendants, undo everything. No catalog and no file needed.
 
-- [ ] T028 [P] [US1] Component test for the tree canvas in `tests/component/TreeCanvas.test.js` — renders the nested options, expands, selects (FR-026, FR-028)
-- [ ] T029 [US1] `src/modules/tree/components/TreeCanvas.vue` — `n-tree` with `virtualScroll`, `draggable`, `expandedKeys`, `selectedKeys`, bound to the store's `nestedOptions` (FR-026, FR-028)
-- [ ] T030 [US1] Wire `allowDrop` in `TreeCanvas.vue` to `homogeneity.canAccept` for both `phase: 'drag'` and `phase: 'drop'`, so a rejected drop shows while the pointer is down (FR-027, R3)
-- [ ] T031 [US1] Store actions in `src/modules/tree/stores/tree.js` — `add`, `rename`, `remove`, `move`, `reorder`, each calling `treeOps` and committing one history step (FR-006, FR-011); renaming a node touches that node alone (FR-024)
-- [ ] T032 [P] [US1] Store-action tests in `tests/unit/stores/tree.test.js` — every action commits exactly one undo step and a refused action commits none
-- [ ] T033 [P] [US1] `src/composables/useConfirm.js` — promise-returning confirmation over `n-dialog`
-- [ ] T034 [US1] Delete confirmation naming the descendant count, using `removeNode`'s `removedIds` before the change applies (FR-010)
-- [ ] T035 [US1] `src/modules/tree/components/StructuralFixDialog.vue` — offers the one-step fix carried on `RuleError.fix`: wrap existing consumers in a new sub-panel, or place the consumer under a chosen sub-panel (FR-016, FR-017, SC-002)
-- [ ] T036 [US1] `src/modules/tree/components/NodeInspector.vue` — name and note of the selected node, editable in place through vee-validate over the node schema (FR-012, FR-029)
-- [ ] T037 [P] [US1] `src/composables/useKeyboardTree.js` over `useMagicKeys` / `onKeyStroke` — add, rename, delete, move and reorder without a pointer, inert while a text field has focus (FR-030, R9)
-- [ ] T038 [P] [US1] Keyboard test in `tests/component/keyboardTree.test.js` — the tree built by keystrokes equals the tree built by store calls (US1 scenario 10)
-- [ ] T039 [US1] Assemble `src/modules/tree/views/TreeEditorView.vue` — canvas, inspector, undo/redo toolbar buttons. Walk V1 in quickstart.md end to end against a stopwatch: a first-time user reaches entry → two panels → six consumers inside five minutes without documentation (SC-001)
-- [ ] T040 [US1] Depth refusal surfaced in the UI with the current depth named (FR-007)
+- [X] T028 [P] [US1] Component test for the tree canvas in `tests/component/TreeCanvas.test.js` — renders the nested options, expands, selects (FR-026, FR-028)
+- [X] T029 [US1] `src/modules/tree/components/TreeCanvas.vue` — `n-tree` with `virtualScroll`, `draggable`, `expandedKeys`, `selectedKeys`, bound to the store's `nestedOptions` (FR-026, FR-028)
+- [X] T030 [US1] Wire `allowDrop` in `TreeCanvas.vue` to `homogeneity.canAccept` for both `phase: 'drag'` and `phase: 'drop'`, so a rejected drop shows while the pointer is down (FR-027, R3)
+- [X] T031 [US1] Store actions in `src/modules/tree/stores/tree.js` — `add`, `rename`, `remove`, `move`, `reorder`, each calling `treeOps` and committing one history step (FR-006, FR-011); renaming a node touches that node alone (FR-024)
+- [X] T032 [P] [US1] Store-action tests in `tests/unit/stores/tree.test.js` — every action commits exactly one undo step and a refused action commits none
+- [X] T033 [P] [US1] `src/composables/useConfirm.js` — promise-returning confirmation over `n-dialog`
+- [X] T034 [US1] Delete confirmation naming the descendant count, using `removeNode`'s `removedIds` before the change applies (FR-010)
+- [X] T035 [US1] `src/modules/tree/components/StructuralFixDialog.vue` — offers the one-step fix carried on `RuleError.fix`: wrap existing consumers in a new sub-panel, or place the consumer under a chosen sub-panel (FR-016, FR-017, SC-002)
+- [X] T036 [US1] `src/modules/tree/components/NodeInspector.vue` — name and note of the selected node, editable in place through vee-validate over the node schema (FR-012, FR-029)
+- [X] T037 [P] [US1] `src/composables/useKeyboardTree.js` over `useMagicKeys` / `onKeyStroke` — add, rename, delete, move and reorder without a pointer, inert while a text field has focus (FR-030, R9)
+- [X] T038 [P] [US1] Keyboard test in `tests/component/keyboardTree.test.js` — the tree built by keystrokes equals the tree built by store calls (US1 scenario 10)
+- [X] T039 [US1] Assemble `src/modules/tree/views/TreeEditorView.vue` — canvas, inspector, undo/redo toolbar buttons. Walk V1 in quickstart.md end to end against a stopwatch: a first-time user reaches entry → two panels → six consumers inside five minutes without documentation (SC-001)
+- [X] T040 [US1] Depth refusal surfaced in the UI with the current depth named (FR-007)
 
 **Checkpoint**: V1 in [quickstart.md](./quickstart.md) passes end to end in `npm run neu:dev`.
+
+Done 2026-09-10. Two things the task list had not anticipated:
+
+- **The note (FR-012) had no operation at all.** `NodeInspector` needs one, so `setNote` was added
+  to the engine and the store. An empty note deletes the field rather than storing `''`, because
+  the schema marks it optional and two spellings of "no note" would both end up in saved files.
+- **The FR-016 fix could not be composed from existing operations.** Adding the wrapper panel to a
+  parent that still holds consumers is refused by the very rule the fix exists to resolve. The
+  legal transition now lives in the engine as `wrapChildrenInPanel`, which builds the intermediate
+  state inside one `produce` where nothing can observe it, and the store composes it with the add
+  the user asked for into a single history step.
 
 ---
 
@@ -108,16 +119,30 @@ a panel with descendants, undo everything. No catalog and no file needed.
 
 **Independent test**: search `холод`, then `fridge`; place the result; rename it; set a quantity of 8.
 
-- [ ] T041 [US2] Extend `src/data/catalog.builtin.json` to at least 80 types across all eleven categories from spec.md *Catalog Scope*, each with `id`, `name`, `nameEn`, `categoryId` (FR-019, FR-020)
-- [ ] T042 [P] [US2] Catalog-coverage test in `tests/unit/catalog/coverage.test.js` — the representative types from the spec's category table resolve at a rate of at least 90%, and every `categoryId` resolves (SC-003)
-- [ ] T043 [P] [US2] Search test in `tests/unit/catalog/search.test.js` — `холод` and `fridge` both return the fridge row; a one-letter typo still ranks it first (FR-021, SC-004)
-- [ ] T044 [US2] Build the `fuse.js` index as a `computed` over the loaded catalog in `src/modules/tree/stores/catalog.js`, and a pure `search(index, query, categoryId)` beside it (R8)
-- [ ] T045 [US2] `src/modules/tree/components/AddConsumerDialog.vue` — search field, category filter, results showing name and category, keyboard-navigable (FR-021, FR-023)
-- [ ] T046 [US2] Placing a result calls the store's `add` with `typeId` and `typeName`, naming the node after the type (FR-023, FR-034)
-- [ ] T047 [P] [US2] Quantity field on the consumer in `NodeInspector.vue`, integer ≥ 1 (FR-025)
-- [ ] T048 [P] [US2] Test in `tests/component/addConsumer.test.js` — placing then renaming leaves the catalog row untouched (US2 scenario 3)
+- [X] T041 [US2] Extend `src/data/catalog.builtin.json` to at least 80 types across all eleven categories from spec.md *Catalog Scope*, each with `id`, `name`, `nameEn`, `categoryId` (FR-019, FR-020)
+- [X] T042 [P] [US2] Catalog-coverage test in `tests/unit/catalog/coverage.test.js` — the representative types from the spec's category table resolve at a rate of at least 90%, and every `categoryId` resolves (SC-003)
+- [X] T043 [P] [US2] Search test in `tests/unit/catalog/search.test.js` — `холод` and `fridge` both return the fridge row; a one-letter typo still ranks it first (FR-021, SC-004)
+- [X] T044 [US2] Build the `fuse.js` index as a `computed` over the loaded catalog in `src/modules/tree/stores/catalog.js`, and a pure `search(index, query, categoryId)` beside it (R8)
+- [X] T045 [US2] `src/modules/tree/components/AddConsumerDialog.vue` — search field, category filter, results showing name and category, keyboard-navigable (FR-021, FR-023)
+- [X] T046 [US2] Placing a result calls the store's `add` with `typeId` and `typeName`, naming the node after the type (FR-023, FR-034)
+- [X] T047 [P] [US2] Quantity field on the consumer in `NodeInspector.vue`, integer ≥ 1 (FR-025)
+- [X] T048 [P] [US2] Test in `tests/component/addConsumer.test.js` — placing then renaming leaves the catalog row untouched (US2 scenario 3)
 
 **Checkpoint**: V2 in quickstart passes; US1 still passes untouched.
+
+Done 2026-09-10. 82 types across all eleven categories. Two things the search test caught that the
+data alone would not have:
+
+- **`холод` ranked «Винний шаф-холодильник» above «Холодильник»**, because the fridge still carried
+  «, 16–20 куб. футів» in its name. That suffix meant something while the type held a power figure
+  for that size; with the figures gone it is noise that outweighs the word the user typed. Five
+  names carried such leftovers and all were trimmed.
+- **The id `fridge-16-20` was renamed to `fridge`.** `contracts/catalog.md` forbids changing an id
+  because it orphans saved projects — but `ProjectFileService` is phase 5, so no project has ever
+  been saved. This was the last moment the rename was free.
+
+`setQuantity` also had to be added to the engine and the store: `addNode` set `quantity: 1` and
+nothing could ever change it, so FR-025 had no implementation behind it.
 
 ---
 
@@ -127,26 +152,71 @@ a panel with descendants, undo everything. No catalog and no file needed.
 
 **Independent test**: build a tree, save, close, reopen — identical node for node.
 
-- [ ] T049 [P] [US3] Test in `tests/unit/services/projectFile.test.js` over `MemoryFs` — a round trip reproduces the tree; a truncated file throws `LoadError` naming the element; nothing reaches the store on failure (FR-035, FR-036, SC-005)
-- [ ] T050 [US3] `src/services/ProjectFileService.js` — `load`, `save` with the `.tmp` → `move` sequence, `scheduleAutosave` debounced at 400 ms, `findRecovery`, `discardRecovery` (FR-031, FR-033, R2)
-- [ ] T051 [US3] Structural validation beyond the schema in `ProjectFileService.load` — every `parentId` and `childIds` entry resolves and agrees, exactly one root, no cycle (contracts/project-file.md)
-- [ ] T052 [US3] Normalize on load and denormalize on save between the file's `nodes` array and the store's map (data-model.md *Runtime shape*)
-- [ ] T053 [US3] Toolbar actions in `src/modules/tree/views/TreeEditorView.vue` — New, Open, Save, Save As through the adapter's native dialogs, with the dirty marker in the title (FR-001, FR-031)
-- [ ] T054 [P] [US3] Recovery prompt on open when a newer autosave sidecar exists, offered before anything loads (FR-031, R2)
-- [ ] T055 [P] [US3] Test that a project naming a type absent from the catalog still renders, from the node's stored `typeName` (FR-034, quickstart V3.2)
-- [ ] T056 [P] [US3] Emit the JSON Schema form of `ProjectSchema` through `@valibot/to-json-schema` as a build script, so `contracts/project-file.md` and the code cannot drift (R6)
+- [X] T049 [P] [US3] Test in `tests/unit/services/projectFile.test.js` over `MemoryFs` — a round trip reproduces the tree; a truncated file throws `LoadError` naming the element; nothing reaches the store on failure (FR-035, FR-036, SC-005)
+- [X] T050 [US3] `src/services/ProjectFileService.js` — `load`, `save` with the `.tmp` → `move` sequence, `scheduleAutosave` debounced at 400 ms, `findRecovery`, `discardRecovery` (FR-031, FR-033, R2)
+- [X] T051 [US3] Structural validation beyond the schema in `ProjectFileService.load` — every `parentId` and `childIds` entry resolves and agrees, exactly one root, no cycle (contracts/project-file.md)
+- [X] T052 [US3] Normalize on load and denormalize on save between the file's `nodes` array and the store's map (data-model.md *Runtime shape*)
+- [X] T053 [US3] Toolbar actions in `src/modules/tree/views/TreeEditorView.vue` — New, Open, Save, Save As through the adapter's native dialogs, with the dirty marker in the title (FR-001, FR-031)
+- [X] T054 [P] [US3] Recovery prompt on open when a newer autosave sidecar exists, offered before anything loads (FR-031, R2)
+- [X] T055 [P] [US3] Test that a project naming a type absent from the catalog still renders, from the node's stored `typeName` (FR-034, quickstart V3.2)
+- [X] T056 [P] [US3] Emit the JSON Schema form of `ProjectSchema` through `@valibot/to-json-schema` as a build script, so `contracts/project-file.md` and the code cannot drift (R6)
 
 **Checkpoint**: V3 in quickstart passes, including `kill -9` recovery under `npm run neu:dev`.
+
+Done 2026-09-11. 32 new tests across `tests/unit/services/projectFile.test.js`,
+`tests/unit/stores/project.test.js`, `tests/component/missingType.test.js` and
+`tests/unit/contracts/projectSchema.test.js`. Three things the tests decided that the contract left
+open:
+
+- **Which element a structural failure names.** With one pass over the nodes, a dangling
+  `parentId` was reported as the *parent's* `nodes[0].childIds[0]` — technically true and useless
+  to the person opening the file. The checks now run in four passes (parentId, childIds,
+  childrenKind, cycle), so the node whose own field is wrong is the one named.
+- **The never-saved sidecar has a fixed name, `unsaved.autosave.json`.** The contract said
+  "a generated name"; the fs adapter has no directory listing, so a random name could be written
+  and never found again. `contracts/project-file.md` now says so.
+- **Declining the recovery offer does not delete the sidecar.** `useConfirm` resolves false for
+  Escape and for the mask click too, and dropping unsaved work on an ambiguous gesture is the one
+  outcome worth avoiding. The next explicit save clears it.
+
+The dirty marker and the 400 ms autosave are driven by one `watch` on `tree.nodes` in
+`stores/project.js` with `flush: 'sync'` — the synchronous flush is what lets `replaceTree` suppress
+it, so opening a project does not immediately mark it dirty and write it back.
 
 ---
 
 ## Phase 6: Polish and cross-cutting concerns
 
-- [ ] T057 [P] 500-node fixture at `tests/fixtures/tree-500.eltree.json` and a performance check that expand, collapse and select stay responsive (FR-037, SC-006, quickstart V4)
-- [ ] T058 [P] Dark and light theme passes over every new component, driven by the `[data-theme]` hook in `src/assets/main.css`
-- [ ] T059 [P] Empty states — a fresh project with one entry node, and a search with no matches
-- [ ] T060 Requirement-coverage run — `npm run test:coverage` over `src/modules/tree/engine/` and `src/services/`, confirming every FR with an acceptance scenario has a test that names it, and that no module models a cable route, length, cross-section, conduit or floor-plan position (FR-038)
-- [ ] T061 Update `README.md` with the run and build commands from quickstart.md
+- [X] T057 [P] 500-node fixture at `tests/fixtures/tree-500.eltree.json` and a performance check that expand, collapse and select stay responsive (FR-037, SC-006, quickstart V4)
+- [X] T058 [P] Dark and light theme passes over every new component, driven by the `[data-theme]` hook in `src/assets/main.css`
+- [X] T059 [P] Empty states — a fresh project with one entry node, and a search with no matches
+- [X] T060 Requirement-coverage run — `npm run test:coverage` over `src/modules/tree/engine/` and `src/services/`, confirming every FR with an acceptance scenario has a test that names it, and that no module models a cable route, length, cross-section, conduit or floor-plan position (FR-038)
+- [X] T061 Update `README.md` with the run and build commands from quickstart.md
+
+Done 2026-09-11. 25 more tests; the suite is 197 across 19 files, `npx eslint .` and
+`npx prettier --check .` clean.
+
+- **The 500-node fixture is generated, not hand-written**: 1 entry + 30 panels (6 floors × 4 rooms
+  + the floors themselves) + 469 consumers, ids `n-f3r2`, `n-c041`, so a failure names a place in
+  the tree. `tests/unit/performance/tree500.test.js` loads it through the real `ProjectFileService`,
+  so the fixture is also a validation case: an illegal fixture fails the suite.
+- **Budgets, not benchmarks**: open under 500 ms, `nestedOptions` and a full expand under 100 ms,
+  100 selections under 50 ms, a subtree move under 50 ms. They catch an accidental O(n²); they do
+  not pretend to measure the machine.
+- **`virtualScroll` needed a definite height**, which the new empty state would have taken away.
+  `TreeCanvas` now grows the tree only while there is something to scroll
+  (`.tree-canvas-tree--grow`), and a project that is only its entry node shows the hint instead.
+- **The theme pass is enforced by a scan, not by a screenshot**: no `.vue` style block may carry a
+  hex, `rgb()` or `hsl()` value, and every `var(--…)` it reads must be declared in `main.css`.
+  Both hold today. The visual pass under `npm run dev` is still a human job.
+- **T060 found four requirements no test named** — FR-005, FR-024, FR-029, FR-032. Three already
+  had behaviour under test and only needed the id in the title; FR-029 had no test at all, so
+  `tests/component/nodeInspector.test.js` is new. `tests/unit/scope/boundaries.test.js` now fails
+  if any FR in `spec.md` stops being named anywhere in `tests/`.
+
+Coverage over the modules that carry the rules: engine 96.6% of statements, `schemas/` 95.2%,
+`services/` 92.4%. `NeutralinoFs.js` sits at 2.6% and stays there — every line of it is a call into
+the platform, which only exists inside `neu run`; `MemoryFs` (97.3%) is what the suite exercises.
 
 ---
 
@@ -193,3 +263,60 @@ rule, holding nothing on disk. That is testable by hand and demonstrates the who
 Phase 1 is not optional and not deferrable. Until it runs, `package.json` carries two unused
 dependencies and `src/` carries a screen and a file API for a capability the specification no longer
 describes — the exact residue the constitution's Principle I exists to prevent.
+
+---
+
+## Phase 7: Convergence
+
+Assessed 2026-09-12 against the code as it stands, not against the checkboxes above. The suite is
+223 tests across 21 files, all green; `npx eslint .` and `npx prettier --check .` are clean; coverage
+is 97.1% of statements over `modules/tree/engine/`, 95.2% over `schemas/`, 92.4% over `services/`.
+Every structural requirement (FR-002 … FR-018), the catalog (FR-019 … FR-025), persistence
+(FR-032 … FR-037) and the scope boundary (FR-038) hold in the code. The four items below do not.
+
+- [X] T062 Flush the pending autosave before the window closes per FR-031 (partial) — `flushAutosave()` is defined at `src/services/ProjectFileService.js:355` and re-exported at `:409`, but no line in `src/` calls it, and `src/` registers no window-close or `beforeunload` handler at all. Autosave is debounced at 400 ms (`ProjectFileService.js:291-347`), so a confirmed structural change made inside that window is lost on an unexpected close — which is exactly what FR-031 forbids. Wire a Neutralino window-close event (`src/main.js` or `App.vue`) that awaits `flushAutosave()` before the window goes away, and cover it with a test over `MemoryFs` asserting the sidecar holds the last change when close fires mid-debounce
+- [X] T063 Route move-path refusals into `StructuralFixDialog` per SC-002 (partial) — the two add paths already do this: the toolbar via `attempt()` (`src/modules/tree/views/TreeEditorView.vue:171-184`) and the consumer picker via `onPickerRefused` (`:211-219`), both reading `RuleError.fix`. The two move paths discard it: keyboard reparent at `:251` is `onRefused: (error) => message.warning(error.message)`, and drag-and-drop at `:329` is `@refused="message.warning($event.message)"`. A homogeneity block reached by moving therefore ends in a toast with no one-confirmation remedy, so SC-002's "every block is accompanied by an offered structural fix" is false for moves. Also give the drag-phase veto in `TreeCanvas.vue:61-80` a way to name the reason — `allowDrop` is a bare boolean, so today a refused drag only makes the drop indicator vanish
+- [X] T065 [P] Component test for the category filter in `src/modules/tree/components/AddConsumerDialog.vue` per FR-021 (partial) — the `n-select` at `:24` composes with the search box and feeds `catalog.find(query, categoryId)`, but only the store-level `search(index, query, categoryId)` is under test (`tests/unit/catalog/search.test.js:32-36`). No test drives the filter through the UI, so a regression in the `n-select` binding would pass the suite
+
+Done 2026-09-13. 22 more tests; the suite is 245 across 27 files, `npx eslint .` and
+`npx prettier --check .` clean.
+
+- **The close guard is a factory, not a listener** (`src/services/closeGuard.js`): `windowClose`
+  fires inside a real window and nowhere else, so the handler takes `flush` and `exit` as
+  arguments and the suite exercises it without one. `exitProcessOnClose` is now `false` in
+  `neutralino.config.json` — that is what gives the handler its turn, and it also makes the
+  handler the only thing that closes the window, so a flush that throws *or hangs* still ends in
+  `exit`; the hang is capped at 2 s.
+- **The drag keeps refusing, and the release explains** (T063): `allowDrop` is a boolean with
+  nowhere to put a reason, so `TreeCanvas` parks the refusal that carries a fix and hands it over
+  on `dragend`. Moving onto a legal target, or leaving the tree, clears it — a fix dialog that
+  opened after the user changed their mind would be worse than none.
+- **One funnel for every refusal**: `surfaceRefusal` in `TreeEditorView.vue` now serves the
+  toolbar, the picker, the keyboard and the released drag. `StructuralFixDialog` learned to
+  relocate an existing node (`pending.op === 'move'`) beside creating a new one, backed by the
+  store's `wrapConsumersAndMove`, which is two engine calls under one `commit` for the same reason
+  `wrapConsumersAndAdd` is.
+- **A latent bug found on the way**: the dialog's defaults were set by a non-immediate `watch`, so
+  a dialog mounted with a refusal already in hand had no target panel selected and its apply
+  button was dead. Mounting it that way is exactly what the new tests do.
+- **T065 was green on arrival**, which was the point: the category filter worked, nothing tested
+  it through the component. Four tests now hold the `n-select` binding, its intersection with the
+  search box, and the return to the whole catalog.
+
+- [X] T066 Ask before closing a dirty project per FR-031 (partial) — T062 made the close flush the pending autosave, but a window with unsaved work still closed without a word, leaving the work only in the sidecar. `tests/unit/services/closeGuard.test.js` already held the intended behaviour and was red: `decideExit` did not exist, and `createCloseHandler` ignored `beforeExit`. Add `decideExit` (clean → close; save / don't save / cancel for a dirty project), let `beforeExit` keep the window open, and wire a three-button prompt into the editor
+
+Done 2026-09-23. The suite is 259 across 27 files, `npx eslint .`, `npx prettier --check .` and
+`npm run build` clean. All three buttons checked by hand in the Neutralino window.
+
+- **The decision is registered, not imported** (`setExitDecision` in `src/services/closeGuard.js`):
+  the guard is installed in `src/main.js` before the app mounts, while the prompt needs Naive UI's
+  dialog provider. `TreeEditorView.vue` registers the decision on setup and unregisters it on
+  unmount; with nothing registered the window closes as before.
+- **A save that does not land keeps the window open**: backing out of the file dialog resolves
+  `null`, a failed write throws — both return false, and the failure is reported in the editor.
+- **"Don't save" cancels the queued autosave first** (`discardUnsaved` in `src/stores/project.js`):
+  the handler flushes after the decision, and a write still waiting out its 400 ms would put back
+  the sidecar that was just removed. The tests did not catch this; it has no test of its own yet.
+- **Every dismissal other than a button is "cancel"** (`src/composables/useExitPrompt.js`): Escape,
+  the mask and the close icon keep the window open, because closing is the step that cannot be
+  taken back.

@@ -16,7 +16,7 @@ startup and never written (FR-022). There is exactly one catalog file.
   ],
   "types": [
     {
-      "id": "fridge-16-20",
+      "id": "fridge",
       "name": "Холодильник",
       "nameEn": "Refrigerator",
       "categoryId": "kitchen"

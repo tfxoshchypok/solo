@@ -101,7 +101,7 @@ The user saves the installation to a file, closes the application, reopens the f
 
 #### Project and tree structure
 
-- **FR-001**: System MUST let a user create, name, save, reopen and delete installation projects, where a project describes exactly one apartment or house.
+- **FR-001**: System MUST let a user create, name, save and reopen installation projects, where a project describes exactly one apartment or house.
 - **FR-002**: System MUST create every new project with exactly one root node of kind *service entry*, which cannot be deleted, duplicated, or given a sibling.
 - **FR-003**: System MUST support exactly three node kinds: *service entry* (root), *panel* (intermediate), and *end consumer* (leaf).
 - **FR-004**: System MUST treat *end consumer* nodes as leaves that can never have children.

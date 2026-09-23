@@ -21,7 +21,7 @@ export default [
   js.configs.recommended,
   ...pluginVue.configs['flat/recommended'],
   {
-    files: ['**/*.js', '**/*.vue'],
+    files: ['**/*.js', '**/*.mjs', '**/*.vue'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
@@ -55,6 +55,17 @@ export default [
         beforeEach: 'readonly',
         afterAll: 'readonly',
         afterEach: 'readonly',
+        performance: 'readonly',
+      },
+    },
+  },
+  {
+    // Build-time scripts run under plain Node, not in the window.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
       },
     },
   },

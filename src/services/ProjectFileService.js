@@ -1,0 +1,414 @@
+// The project file: read it, write it, and keep a sidecar so a crash costs at most 400 ms of work.
+//
+// Two rules shape everything here. A file is accepted whole or refused whole — `load` throws
+// before it returns anything, so no caller can apply half a project (FR-036). And a save never
+// writes over the live file: it writes `<path>.tmp` and moves that onto the target, which on one
+// filesystem is the closest thing to an atomic replace the platform offers (FR-031, R2).
+import * as v from 'valibot'
+import { ProjectSchema, SCHEMA_VERSION, formatIssuePath } from '@/schemas/index.js'
+import { getFs } from './fs/index.js'
+import { appDataDir, autosavePath, join, tmpPath } from './PathService.js'
+
+/** How long the editor stays quiet before the sidecar is rewritten (R2). */
+export const AUTOSAVE_DELAY_MS = 400
+
+/** Where a never-saved project's sidecar waits, since it has no path of its own yet. */
+export const UNSAVED_SIDECAR_NAME = 'unsaved.autosave.json'
+
+/**
+ * A file that cannot become a project. `path` is the failing element inside the file —
+ * `nodes[42].quantity` — not the path on disk, because that is what FR-036 asks the user to be
+ * told. `expected` and `received` are valibot's own words for the same issue.
+ */
+export class LoadError extends Error {
+  constructor({ path, expected, received, message, cause }) {
+    super(message ?? `Файл проєкту пошкоджений: ${path}`)
+    this.name = 'LoadError'
+    this.path = path ?? ''
+    this.expected = expected
+    this.received = received
+    if (cause) this.cause = cause
+  }
+}
+
+function fail(details) {
+  throw new LoadError(details)
+}
+
+function serialize(project) {
+  return `${JSON.stringify(project, null, 2)}\n`
+}
+
+// ---------------------------------------------------------------- normalize / denormalize
+
+/**
+ * File → store. The array becomes the map `stores/tree.js` holds; sibling order stays in
+ * `childIds`, so nothing depends on array position (data-model.md *Runtime shape*).
+ * @returns {{ rootId: string, nodes: object }}
+ */
+export function normalize(project) {
+  const nodes = {}
+  for (const node of project.nodes) nodes[node.id] = { ...node }
+  return { rootId: project.rootId, nodes }
+}
+
+/**
+ * Store → file. Depth-first from the root, so the array reads in the order the tree is drawn and
+ * a diff of two saves shows the change rather than a reshuffle.
+ *
+ * A node the root cannot reach is still written. It would make the file unloadable, which is the
+ * point: losing a subtree silently is worse than a save the next `load` refuses out loud.
+ *
+ * @param {{ rootId: string, nodes: object }} tree
+ * @param {{ name?: string, catalogVersion?: string|null, createdAt?: string }} meta
+ */
+export function denormalize({ rootId, nodes }, meta = {}) {
+  const now = new Date().toISOString()
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    catalogVersion: String(meta.catalogVersion ?? ''),
+    name: meta.name ?? 'Новий проект',
+    createdAt: meta.createdAt ?? now,
+    modifiedAt: now,
+    rootId,
+    nodes: depthFirst(nodes, rootId),
+  }
+}
+
+function depthFirst(nodes, rootId) {
+  const out = []
+  const seen = new Set()
+  const walk = (id) => {
+    const node = nodes[id]
+    if (!node || seen.has(id)) return
+    seen.add(id)
+    out.push({ ...node })
+    for (const childId of node.childIds) walk(childId)
+  }
+  walk(rootId)
+  for (const [id, node] of Object.entries(nodes)) {
+    if (!seen.has(id)) out.push({ ...node })
+  }
+  return out
+}
+
+// ---------------------------------------------------------------- load
+
+function parseJson(text) {
+  try {
+    return JSON.parse(text)
+  } catch (error) {
+    fail({
+      path: '',
+      message: `Файл не є коректним JSON: ${error.message}`,
+      cause: error,
+    })
+  }
+}
+
+function checkSchemaVersion(raw) {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    fail({ path: '', expected: 'object', received: typeof raw, message: 'Файл не є проєктом.' })
+  }
+  if (raw.schemaVersion !== SCHEMA_VERSION) {
+    fail({
+      path: 'schemaVersion',
+      expected: SCHEMA_VERSION,
+      received: raw.schemaVersion,
+      message: `schemaVersion: файл записаний у версії ${raw.schemaVersion}, а ця збірка читає версію ${SCHEMA_VERSION}.`,
+    })
+  }
+}
+
+/** Every per-field rule at once. The first issue names the element the user has to go fix. */
+function checkFields(raw) {
+  const result = v.safeParse(ProjectSchema, raw)
+  if (result.success) return result.output
+
+  const issue = result.issues[0]
+  const path = formatIssuePath(issue)
+  return fail({
+    path,
+    expected: issue.expected,
+    received: issue.received,
+    message: `${path}: очікується ${issue.expected}, отримано ${issue.received}`,
+  })
+}
+
+/**
+ * What the schema cannot see: the tree has to be a tree. Every `parentId` and every `childIds`
+ * entry resolves, the two agree, there is exactly one root, `childrenKind` matches the children
+ * actually present, and climbing `parentId` from anywhere reaches the root without repeating a
+ * node (contracts/project-file.md).
+ */
+function checkStructure(project) {
+  const indexOf = new Map()
+  project.nodes.forEach((node, index) => {
+    if (indexOf.has(node.id)) {
+      fail({
+        path: `nodes[${index}].id`,
+        message: `nodes[${index}].id: ідентифікатор «${node.id}» трапляється у файлі двічі.`,
+      })
+    }
+    indexOf.set(node.id, index)
+  })
+
+  const nodeById = (id) => (indexOf.has(id) ? project.nodes[indexOf.get(id)] : null)
+
+  const roots = project.nodes.filter((node) => node.parentId === null)
+  if (roots.length === 0) {
+    fail({ path: 'nodes', message: 'nodes: у файлі немає кореневого вузла «Ввід».' })
+  }
+  if (roots.length > 1) {
+    const extra = roots[1]
+    fail({
+      path: `nodes[${indexOf.get(extra.id)}].parentId`,
+      message: `nodes[${indexOf.get(extra.id)}].parentId: у файлі два корені — «${roots[0].id}» і «${extra.id}».`,
+    })
+  }
+
+  const root = nodeById(project.rootId)
+  if (!root || root.kind !== 'entry' || root.parentId !== null) {
+    fail({
+      path: 'rootId',
+      received: project.rootId,
+      message: `rootId: «${project.rootId}» не називає кореневий вузол «Ввід».`,
+    })
+  }
+
+  // Four passes rather than one, because the order decides which element the user is sent to.
+  // A node whose own `parentId` is wrong is named before the parent that merely lists it, and a
+  // `childrenKind` is only worth reporting once the children it describes are known to resolve.
+  project.nodes.forEach((node, index) => {
+    if (node.parentId === null) return
+    const parent = nodeById(node.parentId)
+    if (!parent) {
+      fail({
+        path: `nodes[${index}].parentId`,
+        received: node.parentId,
+        message: `nodes[${index}].parentId: «${node.name}» посилається на вузол «${node.parentId}», якого у файлі немає.`,
+      })
+    }
+    if (!parent.childIds.includes(node.id)) {
+      fail({
+        path: `nodes[${index}].parentId`,
+        received: node.parentId,
+        message: `nodes[${index}].parentId: «${node.name}» вважає батьком «${parent.name}», а той не має його серед дітей.`,
+      })
+    }
+  })
+
+  project.nodes.forEach((node, index) => {
+    node.childIds.forEach((childId, position) => {
+      const child = nodeById(childId)
+      if (!child) {
+        fail({
+          path: `nodes[${index}].childIds[${position}]`,
+          received: childId,
+          message: `nodes[${index}].childIds[${position}]: «${node.name}» перелічує дитину «${childId}», якої у файлі немає.`,
+        })
+      }
+      if (child.parentId !== node.id) {
+        fail({
+          path: `nodes[${index}].childIds[${position}]`,
+          received: childId,
+          message: `nodes[${index}].childIds[${position}]: «${child.name}» перелічений у «${node.name}», але батьком вважає інший вузол.`,
+        })
+      }
+    })
+  })
+
+  project.nodes.forEach((node, index) => {
+    if (node.kind === 'consumer') return
+    const kinds = new Set(node.childIds.map((id) => nodeById(id).kind))
+    if (kinds.size > 1) {
+      fail({
+        path: `nodes[${index}].childIds`,
+        message: `nodes[${index}].childIds: «${node.name}» тримає одночасно щитки і споживачів, чого правило однорідності не допускає.`,
+      })
+    }
+    const actual = kinds.size === 0 ? 'undecided' : kinds.has('consumer') ? 'consumers' : 'panels'
+    if (node.childrenKind !== actual) {
+      fail({
+        path: `nodes[${index}].childrenKind`,
+        expected: actual,
+        received: node.childrenKind,
+        message: `nodes[${index}].childrenKind: у «${node.name}» записано «${node.childrenKind}», а насправді там «${actual}».`,
+      })
+    }
+  })
+
+  project.nodes.forEach((node, index) => {
+    const seen = new Set([node.id])
+    let current = node
+    while (current.parentId !== null) {
+      const parent = nodeById(current.parentId)
+      if (seen.has(parent.id)) {
+        fail({
+          path: `nodes[${index}].parentId`,
+          message: `nodes[${index}].parentId: «${node.name}» опинився сам у себе серед предків — у файлі замкнене коло.`,
+        })
+      }
+      seen.add(parent.id)
+      current = parent
+    }
+    if (current.id !== project.rootId) {
+      fail({
+        path: `nodes[${index}].parentId`,
+        message: `nodes[${index}].parentId: «${node.name}» не з'єднаний із вводом.`,
+      })
+    }
+  })
+}
+
+/**
+ * Parse, then the schema, then the tree itself. A failure at any stage throws `LoadError` and
+ * nothing is returned, which is what keeps a broken file from reaching the store (FR-035, FR-036).
+ *
+ * A `typeId` the current catalog no longer ships is deliberately not checked here: the node
+ * carries its own `typeName` and still reads (FR-034).
+ *
+ * @param {string} path
+ * @returns {Promise<{ project: object }>}
+ */
+export async function load(path) {
+  const text = await getFs().readText(path)
+  const raw = parseJson(text)
+  checkSchemaVersion(raw)
+  const project = checkFields(raw)
+  checkStructure(project)
+  return { project }
+}
+
+// ---------------------------------------------------------------- save
+
+/**
+ * `.tmp` first, then one `move`. The previous file stands until the move completes, so a crash
+ * mid-write leaves the last good project intact rather than a truncated one (FR-031).
+ *
+ * @returns {Promise<object>} the project as it was written, with the fresh `modifiedAt`
+ */
+export async function save(project, path) {
+  const fs = getFs()
+  cancelAutosave()
+
+  const payload = {
+    ...project,
+    schemaVersion: SCHEMA_VERSION,
+    modifiedAt: new Date().toISOString(),
+  }
+  const tmp = tmpPath(path)
+  await fs.writeText(tmp, serialize(payload))
+  await fs.move(tmp, path)
+  await dropSidecars(path)
+  return payload
+}
+
+// ---------------------------------------------------------------- autosave sidecar
+
+let timer = null
+let queued = null
+let inFlight = null
+/** The sidecar last written, which may be the unsaved one in the data directory. */
+let lastSidecarPath = null
+
+async function unsavedSidecarPath() {
+  return join(await appDataDir(), UNSAVED_SIDECAR_NAME)
+}
+
+async function sidecarPathFor(path) {
+  return path ? autosavePath(path) : unsavedSidecarPath()
+}
+
+async function writeQueued() {
+  if (!queued) return null
+  const { project, path } = queued
+  queued = null
+
+  const fs = getFs()
+  const sidecarPath = await sidecarPathFor(path)
+  if (!path) await fs.ensureDir(await appDataDir())
+  await fs.writeText(sidecarPath, serialize(project))
+  lastSidecarPath = sidecarPath
+  return sidecarPath
+}
+
+/**
+ * Debounced at 400 ms: the editor writes a sidecar once the user pauses, not on every keystroke.
+ * The latest call wins, so a burst of edits costs one write.
+ */
+export function scheduleAutosave(project, path) {
+  queued = { project, path }
+  if (timer) clearTimeout(timer)
+  timer = setTimeout(() => {
+    timer = null
+    inFlight = writeQueued()
+  }, AUTOSAVE_DELAY_MS)
+}
+
+/** Resolves once the scheduled write has landed — the seam a test waits on. */
+export function autosaveSettled() {
+  return inFlight ?? Promise.resolve(null)
+}
+
+/** Writes the queued state now, without waiting out the debounce. @returns the sidecar path */
+export function flushAutosave() {
+  if (timer) {
+    clearTimeout(timer)
+    timer = null
+  }
+  inFlight = writeQueued()
+  return inFlight
+}
+
+export function cancelAutosave() {
+  if (timer) clearTimeout(timer)
+  timer = null
+  queued = null
+}
+
+async function dropSidecars(path) {
+  const fs = getFs()
+  const paths = new Set([autosavePath(path), lastSidecarPath].filter(Boolean))
+  for (const sidecarPath of paths) {
+    if (await fs.exists(sidecarPath)) await fs.remove(sidecarPath)
+  }
+  lastSidecarPath = null
+}
+
+/**
+ * A sidecar newer than the project file is unsaved work a crash left behind (FR-031). A project
+ * that was never saved has no file to compare against, so the sidecar alone is the offer.
+ *
+ * @returns {Promise<{ sidecarPath: string, modifiedAt: number }|null>}
+ */
+export async function findRecovery(path) {
+  const fs = getFs()
+  const sidecarPath = await sidecarPathFor(path)
+  if (!(await fs.exists(sidecarPath))) return null
+
+  const sidecar = await fs.stat(sidecarPath)
+  if (path && (await fs.exists(path))) {
+    const file = await fs.stat(path)
+    if (sidecar.modifiedAt <= file.modifiedAt) return null
+  }
+  return { sidecarPath, modifiedAt: sidecar.modifiedAt }
+}
+
+export async function discardRecovery(path) {
+  const fs = getFs()
+  const sidecarPath = await sidecarPathFor(path)
+  if (await fs.exists(sidecarPath)) await fs.remove(sidecarPath)
+  if (lastSidecarPath === sidecarPath) lastSidecarPath = null
+}
+
+export const ProjectFileService = {
+  load,
+  save,
+  scheduleAutosave,
+  flushAutosave,
+  autosaveSettled,
+  cancelAutosave,
+  findRecovery,
+  discardRecovery,
+}

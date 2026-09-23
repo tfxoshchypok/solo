@@ -31,7 +31,7 @@ const consumerNode = (over = {}) => ({
   name: 'Холодильник',
   parentId: 'n-root',
   childIds: [],
-  typeId: 'fridge-16-20',
+  typeId: 'fridge',
   typeName: 'Холодильник',
   quantity: 1,
   ...over,

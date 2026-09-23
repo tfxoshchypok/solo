@@ -40,7 +40,7 @@ tree exactly (FR-033, FR-035).
       "name": "Холодильник",
       "parentId": "n-9a1b77e0",
       "childIds": [],
-      "typeId": "fridge-16-20",
+      "typeId": "fridge",
       "typeName": "Холодильник",
       "quantity": 1
     }
@@ -78,11 +78,17 @@ store — no half-loaded project, which is what FR-036 requires.
 The error names the failing element, because valibot reports an issue path:
 
 ```text
-nodes[42].quantity: expected number, received string
+nodes[42].quantity: очікується number, отримано string
 ```
 
-That string is built from the issue's `path` array by `formatIssuePath`, so a new field gets the same
-treatment without new code.
+The path is built from the issue's `path` array by `formatIssuePath`, so a new field gets the same
+treatment without new code; the sentence around it is Ukrainian because it is shown to the user
+verbatim. `LoadError.path` carries the bare path (`nodes[42].quantity`) for anything that needs to
+match on it.
+
+The structural failures below are reported the same way, named from the side whose own field is
+wrong: a node with a dangling `parentId` is reported as `nodes[3].parentId`, not as the `childIds`
+entry of the parent that happens to list it.
 
 Rejected in full, with the failing element named:
 
@@ -95,6 +101,13 @@ Rejected in full, with the failing element named:
 
 A `typeId` that the current catalog does not carry is **not** a failure. The node keeps rendering from
 its stored `typeName` (FR-034).
+
+## Generated JSON Schema
+
+[`project-file.schema.json`](./project-file.schema.json) beside this file is the machine-readable form
+of the same rules, emitted from `ProjectSchema` by `npm run schema:emit`
+(`scripts/emit-project-schema.mjs`). `tests/unit/contracts/projectSchema.test.js` fails when the
+committed file no longer matches the code, so the two cannot drift apart (R6).
 
 ## Atomic write (FR-031)
 
@@ -115,4 +128,6 @@ a sidecar exists and its `modifiedAt` is newer than the project file, the user i
 recovered state **before** anything is loaded. An explicit save removes it.
 
 A project that has never been saved has no path, so its sidecar lives in the application data
-directory under a generated name until the first save moves it.
+directory as `unsaved.autosave.json`, and the first explicit save removes it. The name is fixed
+rather than generated on purpose: the filesystem adapter has no directory listing, so a sidecar
+under a random name could be written but never found again.

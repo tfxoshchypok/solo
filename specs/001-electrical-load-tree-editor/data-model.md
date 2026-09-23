@@ -20,7 +20,7 @@ that map and is never stored.
     'n-4f3c…': { id: 'n-4f3c…', kind: 'entry',    name: 'Ввід',   parentId: null,      childIds: ['n-9a1…'], childrenKind: 'panels' },
     'n-9a1…':  { id: 'n-9a1…',  kind: 'panel',    name: 'Кухня',  parentId: 'n-4f3c…', childIds: ['n-77b…'], childrenKind: 'consumers' },
     'n-77b…':  { id: 'n-77b…',  kind: 'consumer', name: 'Холодильник', parentId: 'n-9a1…', childIds: [],
-                 typeId: 'fridge-16-20', typeName: 'Холодильник', quantity: 1 },
+                 typeId: 'fridge', typeName: 'Холодильник', quantity: 1 },
   },
 }
 ```

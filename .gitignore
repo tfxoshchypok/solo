@@ -20,3 +20,6 @@ Thumbs.db
 # Neutralino client library, fetched by `npx neu update` into the publicDir
 resources/neutralino.js
 resources/neutralino.d.ts
+
+# Projects saved from the app while testing
+projects/

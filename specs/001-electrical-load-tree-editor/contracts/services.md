@@ -22,20 +22,42 @@ and the result is frozen. A caller that tries to patch the returned map in place
 MAX_PANEL_DEPTH                                  // 6 — panels below the entry (FR-007)
 class RuleError extends Error                    // { code, message, fix }
 
-addNode(nodes, { parentId, kind, name, typeId }) // → nodes    FR-006, FR-023
+addNode(nodes, { parentId, kind, name, typeId, typeName })
+                                                 // → { nodes, nodeId }   FR-006, FR-023, FR-034
 removeNode(nodes, nodeId)                        // → { nodes, removedIds }   FR-006
 moveNode(nodes, nodeId, newParentId, index)      // → nodes    FR-008, FR-009
 reorderSibling(nodes, nodeId, index)             // → nodes    FR-006
 renameNode(nodes, nodeId, name)                  // → nodes    FR-006, FR-024
+setNote(nodes, nodeId, note)                     // → nodes    FR-012
+setQuantity(nodes, nodeId, quantity)             // → nodes    FR-025
+wrapChildrenInPanel(nodes, parentId, panelName)  // → { nodes, nodeId }   the FR-016 fix
 
 descendantIds(nodes, nodeId)                     // → id[]     the subtree, excluding the node
 depthOf(nodes, nodeId)                           // → integer  entry is 0
 isDescendantOf(nodes, nodeId, ancestorId)        // → boolean  FR-008
 ```
 
-`RuleError` is the single refusal channel. `code` is one of `homogeneity`, `cycle`, `depth`,
-`typeRequired`; `fix` is the one-step remedy FR-016 and FR-017 require the UI to offer, or `null` when
-there is none.
+`RuleError` is the single refusal channel. `fix` is the one-step remedy FR-016 and FR-017 require the
+UI to offer, and it is **absent** when there is none — the view branches on its presence, never on
+the code.
+
+`code` is diagnostic: it names the rule that refused, for a log or a test, and no production code
+reads it. The vocabulary is deliberately specific rather than one `homogeneity` bucket, because the
+two homogeneity cases carry different fixes:
+
+| `code` | Refused because |
+|---|---|
+| `parentHoldsPanels` | a consumer under a panel that holds panels — `fix.kind: 'placeUnderChildPanel'` with `candidatePanelIds` |
+| `parentHoldsConsumers` | a panel under a panel that holds consumers — `fix.kind: 'wrapConsumersInNewPanel'` with `consumerIds` |
+| `consumerIsLeaf` | any child under a consumer (FR-004) |
+| `depthLimit` | a panel deeper than `MAX_PANEL_DEPTH` (FR-007) |
+| `cycle` | a move into the node's own subtree (FR-008) |
+| `rootProtected` | deleting, moving or reparenting the entry node (FR-002) |
+| `typeRequired` / `typeNameRequired` | a consumer with no catalog type behind it (FR-023, FR-034) |
+| `nameRequired` | an empty node name (FR-006) |
+| `badQuantity` / `quantityOnNonConsumer` | a quantity that is not an integer ≥ 1, or set on a panel (FR-025) |
+| `noSuchNode` / `noSuchParent` / `nothingToWrap` | the caller named something that is not there |
+| `corruptTree` | a `parentId` walk that revisits a node — only reachable from a hand-edited file |
 
 `removeNode` returns `removedIds` rather than a count, because FR-010 needs the number **before** the
 deletion applies and the selection needs the ids after.
@@ -112,11 +134,21 @@ projectFileName(name)            // → string    a project name → a safe file
 
 ```js
 load(path)                       // → { project } | throws LoadError    FR-035, FR-036
-save(project, path)              // → void    write .tmp → move → drop autosave    FR-031, FR-033
-scheduleAutosave(project, path)  // debounced 400 ms                     R2
+save(project, path)              // → the project as written, with a fresh modifiedAt
+                                 //   write .tmp → move → drop the sidecar    FR-031, FR-033
+scheduleAutosave(project, path)  // debounced 400 ms; `path` null → the data directory   R2
+flushAutosave()                  // → the sidecar path; writes the queued state now
+autosaveSettled()                // → resolves once a scheduled write has landed
+cancelAutosave()                 // drops the queued write, e.g. because a save just happened
 findRecovery(path)               // → { sidecarPath, modifiedAt } | null
 discardRecovery(path)            // → void
+
+normalize(project)               // file → { rootId, nodes }   the store's map
+denormalize(tree, meta)          // { rootId, nodes } + { name, catalogVersion, createdAt } → file
 ```
+
+`normalize` and `denormalize` are pure and live here rather than in the store, so the file shape and
+the runtime shape are converted in one place that tests without Pinia (data-model.md *Runtime shape*).
 
 `LoadError` carries `{ path: 'nodes[42].quantity', expected, received, message }` — the element name
 FR-036 requires. A file that fails validation is rejected whole: nothing is applied to the store.

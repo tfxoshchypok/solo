@@ -256,6 +256,96 @@ export function reorderSibling(nodes, nodeId, index) {
   })
 }
 
+/**
+ * How many identical units one consumer node stands for — eight downlights are one node with a
+ * quantity of eight, not eight siblings (FR-025). Guarded rather than clamped: a caller passing
+ * 0 or 2.5 has a bug, and silently rounding it would hide the bug behind a plausible tree.
+ * @returns {object} nodes
+ */
+export function setQuantity(nodes, nodeId, quantity) {
+  const node = require_(nodes, nodeId)
+  if (node.kind !== 'consumer') {
+    throw new RuleError({
+      code: 'quantityOnNonConsumer',
+      message: `«${node.name}» — не кінцевий споживач, кількість до нього не застосовується.`,
+    })
+  }
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    throw new RuleError({
+      code: 'badQuantity',
+      message: 'Кількість — ціле число, не менше 1.',
+      fix: 'Введіть 1 або більше.',
+    })
+  }
+  return produce(nodes, (draft) => {
+    draft[nodeId].quantity = quantity
+  })
+}
+
+/**
+ * The one legal way out of `consumers` into `panels`: a new panel takes the consumers with it, so
+ * the parent never holds a mixture even for an instant. This is the fix FR-016 offers, and it
+ * lives here rather than in the store because the intermediate state — a panel holding both kinds
+ * — is illegal, and only the engine may construct it inside a single `produce` where nobody can
+ * observe it.
+ *
+ * @returns {{ nodes: object, nodeId: string }} the map and the id of the panel that was created
+ */
+export function wrapChildrenInPanel(nodes, parentId, panelName) {
+  const parent = require_(nodes, parentId)
+
+  if (childrenKindAfter(nodes, parentId) !== 'consumers') {
+    throw new RuleError({
+      code: 'nothingToWrap',
+      message: `«${parent.name}» не містить споживачів, тож переносити нічого.`,
+      fix: null,
+    })
+  }
+  if (String(panelName ?? '').trim() === '') {
+    throw new RuleError({
+      code: 'nameRequired',
+      message: 'Новий щиток не може бути без назви.',
+      fix: 'Введіть назву.',
+    })
+  }
+
+  // The wrap pushes every consumer one level down, so the deepest one has to stay within reach.
+  const landingDepth = depthOf(nodes, parentId) + 1
+  if (landingDepth > MAX_PANEL_DEPTH) refuseDepth(landingDepth)
+
+  const nodeId = newId()
+  const moved = [...parent.childIds]
+  const next = produce(nodes, (draft) => {
+    draft[nodeId] = {
+      id: nodeId,
+      kind: 'panel',
+      name: String(panelName).trim(),
+      parentId,
+      childIds: moved,
+      childrenKind: 'consumers',
+    }
+    draft[parentId].childIds = [nodeId]
+    draft[parentId].childrenKind = 'panels'
+    for (const childId of moved) draft[childId].parentId = nodeId
+  })
+  return { nodes: next, nodeId }
+}
+
+/**
+ * A free-text note on any kind of node (FR-012). An empty note deletes the field instead of
+ * storing `''`: the schema marks `note` optional, so an absent note and a blank one would
+ * otherwise be two spellings of the same thing in every saved file.
+ * @returns {object} nodes
+ */
+export function setNote(nodes, nodeId, note) {
+  require_(nodes, nodeId)
+  const trimmed = String(note ?? '').trim()
+  return produce(nodes, (draft) => {
+    if (trimmed === '') delete draft[nodeId].note
+    else draft[nodeId].note = trimmed
+  })
+}
+
 /** @returns {object} nodes */
 export function renameNode(nodes, nodeId, name) {
   require_(nodes, nodeId)
