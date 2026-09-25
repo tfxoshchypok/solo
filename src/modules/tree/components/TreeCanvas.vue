@@ -25,6 +25,12 @@ const selectedKeys = computed(() => (tree.selectedId ? [tree.selectedId] : []))
  */
 const activeParentId = computed(() => tree.nodes[tree.selectedId]?.parentId ?? null)
 
+/**
+ * Row size goes through the theme, not CSS: the virtual list positions rows by `nodeHeight`, and a
+ * row taller than that number would drift out of place as the list scrolls.
+ */
+const TREE_THEME = { nodeHeight: '36px', fontSize: '15px' }
+
 const KIND_ICON = { entry: PowerOutline, panel: GridOutline, consumer: BulbOutline }
 
 /** One glyph per kind: an entry, a panel and a consumer are not distinguishable by name alone. */
@@ -54,13 +60,33 @@ function landingParentId(targetId, dropPosition) {
 }
 
 /**
+ * What is being dragged. `n-tree` announces it once, on `dragstart`, and never passes it to
+ * `allowDrop`, which is told about the target alone (naive-ui `AllowDrop`: `{ node, dropPosition,
+ * phase }`) — so the canvas has to remember it for the length of the drag.
+ */
+let draggingId = null
+
+/**
+ * `n-tree` starts the drag with an empty `dataTransfer`. Chrome carries that anyway; WebKitGTK on
+ * Wayland — the Neutralino window on Linux — cancels it right after `dragstart`, so no `dragover`
+ * or `drop` ever reaches the tree. Any payload keeps it alive.
+ */
+function onDragStart({ node, event }) {
+  draggingId = node?.key ?? null
+  const transfer = event?.dataTransfer
+  if (!transfer || !draggingId) return
+  transfer.setData('text/plain', String(draggingId))
+  transfer.effectAllowed = 'move'
+}
+
+/**
  * The verdict on a hovered position: whether the drop may happen, and — when it may not but the
  * homogeneity rule offers a way out — what to offer once the pointer comes up.
  *
  * @returns {{ ok: boolean, refusal?: { error: object, request: object } }}
  */
-function judgeDrop({ dropPosition, node, dragNode }) {
-  const dragId = dragNode?.key
+function judgeDrop({ dropPosition, node }) {
+  const dragId = draggingId
   const targetId = node?.key
   if (!dragId || !targetId || dragId === targetId) return { ok: false }
 
@@ -116,6 +142,7 @@ function onDragLeave(event) {
 function onDragEnd() {
   const refusal = pendingRefusal
   pendingRefusal = null
+  draggingId = null
   if (refusal) emit('refused', refusal)
 }
 
@@ -129,6 +156,7 @@ function onDrop({ node, dragNode, dropPosition }) {
   const targetId = node?.key
   const parentId = landingParentId(targetId, dropPosition)
   pendingRefusal = null
+  draggingId = null
   if (!dragId || !parentId) return
 
   try {
@@ -139,8 +167,12 @@ function onDrop({ node, dragNode, dropPosition }) {
     const siblings = tree.nodes[parentId].childIds
     const at = siblings.indexOf(targetId)
     const index = dropPosition === 'before' ? at : at + 1
-    if (tree.nodes[dragId].parentId === parentId) tree.reorder(dragId, index)
-    else tree.move(dragId, parentId, index)
+    if (tree.nodes[dragId].parentId === parentId) {
+      // `index` counts the dragged node, which `reorder` takes out before putting it back: moving
+      // down, every place past it shifts up by one.
+      const from = siblings.indexOf(dragId)
+      tree.reorder(dragId, from < index ? index - 1 : index)
+    } else tree.move(dragId, parentId, index)
   } catch (error) {
     if (!(error instanceof RuleError)) throw error
     emit('refused', { error, request: { op: 'move', nodeId: dragId, parentId } })
@@ -158,9 +190,13 @@ function onDrop({ node, dragNode, dropPosition }) {
       :data="data"
       :expanded-keys="expandedKeys"
       :selected-keys="selectedKeys"
+      :cancelable="false"
+      :animated="false"
+      :theme-overrides="TREE_THEME"
       :allow-drop="allowDrop"
       :node-props="nodeProps"
       :render-prefix="renderPrefix"
+      @dragstart="onDragStart"
       @drop="onDrop"
       @update:expanded-keys="tree.setExpanded"
       @update:selected-keys="(keys) => tree.select(keys[0] ?? null)"

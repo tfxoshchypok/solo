@@ -43,25 +43,29 @@ function mountCanvas() {
   return { store, wrapper, ntree: wrapper.findComponent(NTree) }
 }
 
-const hover = (allowDrop, dragId, targetId, dropPosition = 'inside') =>
-  allowDrop({
-    dropPosition,
-    node: { key: targetId },
-    dragNode: { key: dragId },
-    phase: 'drag',
-  })
+/**
+ * n-tree's own contract (naive-ui `AllowDrop`, `es/tree/src/interface.d.ts:55-59`): the dragged node
+ * is announced once, on `dragstart`, and every `allowDrop` after that names the target alone.
+ */
+const startDrag = (ntree, dragId) =>
+  ntree.vm.$emit('dragstart', { node: { key: dragId }, event: {} })
+
+const hover = (ntree, targetId, dropPosition = 'inside') =>
+  ntree.props('allowDrop')({ dropPosition, node: { key: targetId }, phase: 'drag' })
 
 describe('a refused drag still offers its fix once the pointer is released (SC-002, FR-027)', () => {
   it('keeps refusing the drop itself, so the preview never promises a move that cannot happen', () => {
     const { ntree } = mountCanvas()
-    const allowDrop = ntree.props('allowDrop')
-    expect(hover(allowDrop, 'spare', 'kitchen')).toBe(false)
-    expect(hover(allowDrop, 'lamp', 'floor')).toBe(false)
+    startDrag(ntree, 'spare')
+    expect(hover(ntree, 'kitchen')).toBe(false)
+    startDrag(ntree, 'lamp')
+    expect(hover(ntree, 'floor')).toBe(false)
   })
 
   it('emits the refusal with its fix when the user releases over the refused panel', async () => {
     const { wrapper, ntree } = mountCanvas()
-    hover(ntree.props('allowDrop'), 'spare', 'kitchen')
+    startDrag(ntree, 'spare')
+    hover(ntree, 'kitchen')
     await wrapper.trigger('dragend')
 
     const [payload] = wrapper.emitted('refused')[0]
@@ -71,7 +75,8 @@ describe('a refused drag still offers its fix once the pointer is released (SC-0
 
   it('offers the sub-panel fix when a consumer is dragged onto a panel holding panels', async () => {
     const { wrapper, ntree } = mountCanvas()
-    hover(ntree.props('allowDrop'), 'lamp', 'floor')
+    startDrag(ntree, 'lamp')
+    hover(ntree, 'floor')
     await wrapper.trigger('dragend')
 
     const [payload] = wrapper.emitted('refused')[0]
@@ -81,11 +86,11 @@ describe('a refused drag still offers its fix once the pointer is released (SC-0
 
   it('says nothing when the pointer last rested somewhere the drop was legal', async () => {
     const { wrapper, ntree } = mountCanvas()
-    const allowDrop = ntree.props('allowDrop')
-    hover(allowDrop, 'spare', 'kitchen')
+    startDrag(ntree, 'spare')
+    hover(ntree, 'kitchen')
     // The user thought better of it and moved onto an empty panel, which accepts anything.
-    hover(allowDrop, 'spare', 'spare')
-    hover(allowDrop, 'spare', 'bedroom')
+    hover(ntree, 'spare')
+    hover(ntree, 'bedroom')
     await wrapper.trigger('dragend')
 
     expect(wrapper.emitted('refused')).toBeUndefined()
@@ -93,7 +98,8 @@ describe('a refused drag still offers its fix once the pointer is released (SC-0
 
   it('says nothing when the pointer left the tree before the release', async () => {
     const { wrapper, ntree } = mountCanvas()
-    hover(ntree.props('allowDrop'), 'spare', 'kitchen')
+    startDrag(ntree, 'spare')
+    hover(ntree, 'kitchen')
     await wrapper.trigger('dragleave', { relatedTarget: document.body })
     await wrapper.trigger('dragend')
 
@@ -102,7 +108,8 @@ describe('a refused drag still offers its fix once the pointer is released (SC-0
 
   it('says nothing for a refusal no fix can resolve, such as a node dropped into itself', async () => {
     const { wrapper, ntree } = mountCanvas()
-    hover(ntree.props('allowDrop'), 'floor', 'bedroom')
+    startDrag(ntree, 'floor')
+    hover(ntree, 'bedroom')
     await wrapper.trigger('dragend')
 
     expect(wrapper.emitted('refused')).toBeUndefined()

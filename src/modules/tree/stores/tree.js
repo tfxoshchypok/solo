@@ -200,6 +200,8 @@ export const useTreeStore = defineStore('tree', () => {
 
   function move(nodeId, newParentId, index = 0) {
     apply(moveNode(nodes.value, nodeId, newParentId, index))
+    // Same reason as `add`: a node carried into a collapsed panel would otherwise vanish from view.
+    expandTo(newParentId)
   }
 
   function reorder(nodeId, index) {
