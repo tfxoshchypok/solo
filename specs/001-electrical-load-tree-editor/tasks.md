@@ -322,3 +322,32 @@ Done 2026-09-23. The suite is 261 across 27 files, `npx eslint .`, `npx prettier
 - **Every dismissal other than a button is "cancel"** (`src/composables/useExitPrompt.js`): Escape,
   the mask and the close icon keep the window open, because closing is the step that cannot be
   taken back.
+
+Checked by hand in the Neutralino window on 2026-09-24/25, which turned up six defects in the tree
+that the suite did not see. The window on Linux is WebKitGTK 2.52 on Wayland; the suite runs in
+happy-dom, where `n-tree`'s virtual list renders no rows, so nothing there clicks or drags a real
+row.
+
+- [X] T067 Keep the selection when the selected row is clicked again per FR-026 — `n-tree`'s `cancelable` defaults to `true`, so a second click on the selected row emitted an empty selection and `TreeCanvas.vue` passed it on as `tree.select(null)`, emptying the inspector on the most common gesture there is. Set `:cancelable="false"`
+- [X] T068 Stop `n-tree` freezing on a stale row list per FR-028 — with animation on, `n-tree` 2.45.3 swaps its rows for a snapshot while an expand/collapse runs and only the animation's end swaps them back (`naive-ui/es/tree/src/Tree.mjs:461`, `:506`). When the collapsed key is a node that was just deleted, or one with no children, it returns before starting any animation (`:480-482`) and stays frozen. Deleting nested panels until the tree was empty and adding one hid the new panel until the next add. 2.45.3 is the latest release. Set `:animated="false"`
+- [X] T069 Make drag-and-drop reach the store per FR-027 — it never worked in the app. `n-tree` calls `allowDrop` with `{ node, dropPosition, phase }` only (naive-ui `AllowDrop`, `es/tree/src/interface.d.ts:55-59`); `judgeDrop` read the dragged node from a `dragNode` that is never passed and refused every position. The tests passed because they supplied that `dragNode` themselves. Take the dragged node from `@dragstart`, and rewrite the drag tests to `n-tree`'s real sequence
+- [X] T070 Give the drag a payload so WebKitGTK on Wayland carries it per FR-027 — `n-tree` starts the drag with an empty `dataTransfer`. Chrome carries that; the Neutralino window cancels it right after `dragstart`, and a probe logging DOM events through `debug.log` showed not one `dragenter`, `dragover` or `drop` in between. Call `setData('text/plain', key)` and set `effectAllowed = 'move'` in `onDragStart`
+- [X] T071 Land a downward reorder on the row the user chose per FR-006 — `onDrop` computed the index in the sibling list with the dragged node still in it, while `reorderSibling` takes the node out before putting it back (`treeOps.js:254-255`). Moving down, the node landed one row too far: `[A, B, C]`, A dropped after B, gave `[B, C, A]`. Subtract one when the node starts above its target
+- [X] T072 Open the panel that receives a move per FR-028 — `add` already expands its target (`expandTo`), `move` did not, so a node dropped into a collapsed panel, or moved there with Alt+→, vanished from view. Call `expandTo(newParentId)` in the store's `move`
+
+Done 2026-09-25. The suite is 267 across 27 files; `npx eslint .` and `npx prettier --check .`
+clean. T067 came from a user report and was traced in the `n-tree` source. T068 was reproduced and
+then checked fixed in WebKitGTK (the system library, driven from Python through GObject
+introspection); T070 in the Neutralino window itself, through the `debug.log` probe; T069, T071
+and T072 in headless Chrome through Playwright. Drag, reorder and the row size were then checked
+by hand in the Neutralino window.
+
+- **Two of the six are Naive UI's, not ours** (T068, T070), and neither can be fixed by an upgrade.
+  Each fix is one prop or two lines, and each carries a comment naming the `n-tree` behaviour it
+  works around, so it is not "cleaned up" later.
+- **What the drag still does, by design of `n-tree`**: over a row that could take the dragged node
+  inside, only an 8 px strip at the top and bottom means "before"/"after" (`eventOffsetY <= 8`),
+  and "after" an expanded panel means "first inside it". Left as is.
+- **Rows are 36 px with 15 px text** — a requested change, not a defect. It goes through
+  `:theme-overrides`, because the virtual list sizes rows by the theme's `nodeHeight`
+  (`Tree.mjs:1212`); a CSS-only change would let rows drift as the list scrolls.
