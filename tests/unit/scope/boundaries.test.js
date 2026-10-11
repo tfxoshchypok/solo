@@ -1,32 +1,11 @@
 // FR-038 is a boundary, not a behaviour: the editor models what is connected to what, and nothing
 // about how the cable gets there. A requirement like that has no acceptance scenario to test, so
-// what is testable is the absence — no module, and no catalog row, carries the fields that would
-// mean someone started modelling a route, a length, a cross-section, a conduit, a terminal or a
-// position on a floor plan.
+// what is testable is the absence — a node keeps only the fields its schema names.
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
-import catalog from '@/data/catalog.builtin.json'
-import { CatalogSchema, NodeSchema } from '@/schemas/index.js'
+import { NodeSchema } from '@/schemas/index.js'
 import * as v from 'valibot'
-
-/**
- * Ukrainian and English both, because half the strings in this codebase are Ukrainian. `route` on
- * its own is deliberately absent — `vue-router` uses it everywhere and would match every view;
- * only the cable sense is looked for.
- */
-const OUT_OF_SCOPE = [
-  /\bcables?\b/i,
-  /\bconduits?\b/i,
-  /cross-?section/i,
-  /cable-?(route|length|run)/i,
-  /floor-?plan/i,
-  /\bterminals?\b/i,
-  /кабел/i,
-  /переріз/i,
-  /гофр/i,
-  /план\s+поверх/i,
-  /клем/i,
-]
+import { loadTypeRow, zoneRow } from '../../fixtures/tree.js'
 
 function sourceFiles() {
   return readdirSync('src', { recursive: true })
@@ -36,24 +15,61 @@ function sourceFiles() {
 }
 
 /**
- * The requirement-to-test map T060 asks for. Every requirement the spec numbers has to be named by
- * at least one test, so a requirement cannot be quietly dropped in a refactor: deleting the test
- * that proves it makes this fail with the id in the message.
+ * Feature 001 requirements that feature 002 retires, as its spec lists them under *Relation to
+ * Feature 001* (specs/002-reference-tables-consumer-fields/spec.md): the catalog and its search
+ * (FR-019 – FR-022), placing from it (FR-023), renaming against it (FR-024), quantity (FR-025), the
+ * catalog version (FR-033) and the stored type name (FR-034). Their tests left with the catalog.
  */
-describe('every numbered requirement is named by a test (T060)', () => {
-  it('leaves no FR from spec.md unclaimed', () => {
-    const spec = readFileSync('specs/001-electrical-load-tree-editor/spec.md', 'utf8')
-    const required = new Set(spec.match(/FR-\d{3}/g))
+const SUPERSEDED_BY_002 = new Set([
+  'FR-019',
+  'FR-020',
+  'FR-021',
+  'FR-022',
+  'FR-023',
+  'FR-024',
+  'FR-025',
+  'FR-033',
+  'FR-034',
+])
 
-    const named = new Set()
-    for (const name of readdirSync('tests', { recursive: true }).map(String)) {
-      if (!name.endsWith('.test.js')) continue
-      for (const id of readFileSync(`tests/${name}`, 'utf8').match(/FR-\d{3}/g) ?? []) {
-        named.add(id)
-      }
-    }
+/** The ids a spec defines, one per `- **FR-NNN**` line; a mention elsewhere is not one. */
+function definedRequirements(path) {
+  const spec = readFileSync(path, 'utf8')
+  return [...spec.matchAll(/^\s*- \*\*(FR-\d{3})\*\*/gm)].map(([, id]) => id)
+}
 
-    expect([...required].filter((id) => !named.has(id)).sort()).toEqual([])
+function testSources() {
+  return readdirSync('tests', { recursive: true })
+    .map(String)
+    .filter((name) => name.endsWith('.test.js'))
+    .map((name) => readFileSync(`tests/${name}`, 'utf8'))
+    .join('\n')
+}
+
+/**
+ * The requirement-to-test map T060 asks for, over both specs. Every requirement a spec defines has to
+ * be named by at least one test, so a requirement cannot be quietly dropped in a refactor: deleting
+ * the test that proves it makes this fail with the id in the message. Both specs number from 001, so
+ * a test of feature 002 writes the id with a `002/` prefix and a bare id names feature 001 (research
+ * R12). The ids come from the definitions, because spec 002 also mentions ids of feature 001.
+ */
+describe('every numbered requirement of both specs is named by a test (T060, T055)', () => {
+  it('leaves no requirement of feature 001 unclaimed, cited by a bare id', () => {
+    const required = definedRequirements('specs/001-electrical-load-tree-editor/spec.md').filter(
+      (id) => !SUPERSEDED_BY_002.has(id),
+    )
+    const named = new Set(testSources().match(/(?<!\/)FR-\d{3}/g))
+
+    expect(required.length).toBeGreaterThan(0)
+    expect(required.filter((id) => !named.has(id)).sort()).toEqual([])
+  })
+
+  it('leaves no requirement of feature 002 unclaimed, cited with the 002/ prefix', () => {
+    const required = definedRequirements('specs/002-reference-tables-consumer-fields/spec.md')
+    const named = new Set((testSources().match(/002\/FR-\d{3}/g) ?? []).map((id) => id.slice(4)))
+
+    expect(required.length).toBeGreaterThan(0)
+    expect(required.filter((id) => !named.has(id)).sort()).toEqual([])
   })
 })
 
@@ -70,38 +86,9 @@ describe('nothing reaches the network (FR-032)', () => {
 
     expect(hits).toEqual([])
   })
-
-  it('reads the catalog from the bundle rather than from anywhere else (FR-022)', () => {
-    const service = readFileSync('src/services/CatalogFileService.js', 'utf8')
-    expect(service).toContain("import builtinCatalog from '@/data/catalog.builtin.json'")
-    expect(service).not.toContain('getFs')
-  })
 })
 
 describe('the feature stops where FR-038 says it stops', () => {
-  it('mentions no cable route, length, cross-section, conduit, terminal or floor plan', () => {
-    const hits = []
-    for (const { file, text } of sourceFiles()) {
-      for (const pattern of OUT_OF_SCOPE) {
-        if (pattern.test(text)) hits.push(`${file}: ${pattern}`)
-      }
-    }
-
-    expect(hits).toEqual([])
-  })
-
-  it('keeps the catalog row at four fields — nothing about how the load is fed (FR-020)', () => {
-    expect(v.safeParse(CatalogSchema, catalog).success).toBe(true)
-
-    const extra = new Set()
-    for (const type of catalog.types) {
-      for (const key of Object.keys(type)) {
-        if (!['id', 'name', 'nameEn', 'categoryId'].includes(key)) extra.add(key)
-      }
-    }
-    expect([...extra]).toEqual([])
-  })
-
   it('keeps a node at its structural fields, so a save cannot smuggle one in', () => {
     const consumer = {
       id: 'n-1',
@@ -109,14 +96,14 @@ describe('the feature stops where FR-038 says it stops', () => {
       name: 'Холодильник',
       parentId: 'n-0',
       childIds: [],
-      typeId: 'fridge',
-      typeName: 'Холодильник',
-      quantity: 1,
-      cableCrossSection: 2.5,
+      loadType: loadTypeRow({ id: 'lt-fridge', name: 'Холодильник' }),
+      zone: zoneRow({ id: 'zn-kitchen', name: 'Кухня' }),
+      cableSectionMm2: 2.5,
+      cableLength: 12,
     }
 
     // valibot drops what the schema does not name, so the field never reaches the store or the file.
     const parsed = v.parse(NodeSchema, consumer)
-    expect(parsed.cableCrossSection).toBeUndefined()
+    expect(parsed.cableLength).toBeUndefined()
   })
 })

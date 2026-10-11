@@ -10,12 +10,14 @@ import { readFileSync } from 'node:fs'
 import { createPinia, setActivePinia } from 'pinia'
 import { setFs, MemoryFs } from '@/services/fs/index.js'
 import { useTreeStore } from '@/modules/tree/stores/tree.js'
-import { useCatalogStore } from '@/modules/tree/stores/catalog.js'
 import { useProjectStore } from '@/stores/project.js'
 import { canAccept } from '@/modules/tree/engine/homogeneity.js'
 import { descendantIds, isDescendantOf, RuleError } from '@/modules/tree/engine/treeOps.js'
-import { ProjectFileService, LoadError } from '@/services/ProjectFileService.js'
+import { ProjectFileService } from '@/services/ProjectFileService.js'
+import { LoadError } from '@/services/LoadError.js'
 import { PROJECT_EXTENSION } from '@/services/PathService.js'
+import { useReferenceTablesStore } from '@/modules/reference/stores/referenceTables.js'
+import { loadTypeRow, zoneRow } from '../../fixtures/tree.js'
 
 const PATH = `/home/user/квартира${PROJECT_EXTENSION}`
 
@@ -78,8 +80,8 @@ describe('V1 — Build the tree (User Story 1)', () => {
         parentId: floor,
         kind: 'consumer',
         name: 'Холодильник',
-        typeId: 'fridge',
-        typeName: 'Холодильник',
+        loadType: loadTypeRow(),
+        zone: zoneRow(),
       }),
     )
 
@@ -96,8 +98,8 @@ describe('V1 — Build the tree (User Story 1)', () => {
       parentId: kitchen,
       kind: 'consumer',
       name: 'Холодильник',
-      typeId: 'fridge',
-      typeName: 'Холодильник',
+      loadType: loadTypeRow(),
+      zone: zoneRow(),
     })
 
     const refusal = refusalFrom(() =>
@@ -125,8 +127,8 @@ describe('V1 — Build the tree (User Story 1)', () => {
         parentId: source,
         kind: 'consumer',
         name: `Споживач ${i}`,
-        typeId: 'socket',
-        typeName: 'Розетка',
+        loadType: loadTypeRow(),
+        zone: zoneRow(),
       })
     }
     const target = tree.add({ parentId: tree.rootId, kind: 'panel', name: 'Гараж' })
@@ -163,8 +165,8 @@ describe('V1 — Build the tree (User Story 1)', () => {
       parentId: kitchen,
       kind: 'consumer',
       name: 'Холодильник',
-      typeId: 'fridge',
-      typeName: 'Холодильник',
+      loadType: loadTypeRow(),
+      zone: zoneRow(),
     })
 
     // The number the confirmation shows is the descendants, read while they are still there;
@@ -195,8 +197,8 @@ describe('V1 — Build the tree (User Story 1)', () => {
       parentId: kitchen,
       kind: 'consumer',
       name: 'Холодильник',
-      typeId: 'fridge',
-      typeName: 'Холодильник',
+      loadType: loadTypeRow(),
+      zone: zoneRow(),
     })
     expect(tree.nodes[kitchen].childrenKind).toBe('consumers')
 
@@ -221,118 +223,32 @@ describe('V1 — Build the tree (User Story 1)', () => {
   })
 })
 
-describe('V2 — Place consumers from the catalog (User Story 2)', () => {
-  it('V2.1 — «холод» and «fridge» reach the same row (FR-021, SC-004)', () => {
-    const catalog = useCatalogStore()
-
-    expect(catalog.find('холод')[0].id).toBe('fridge')
-    expect(catalog.find('fridge')[0].id).toBe('fridge')
-    // And the category travels with the row, so a name alone need not disambiguate.
-    expect(catalog.categoryById(catalog.find('холод')[0].categoryId)).toBeTruthy()
-  })
-
-  it('V2.2 — placing a type makes a leaf that records typeId and typeName (FR-023)', () => {
-    const tree = useTreeStore()
-    const catalog = useCatalogStore()
-    const kitchen = tree.add({ parentId: tree.rootId, kind: 'panel', name: 'Кухня' })
-    const type = catalog.typeById('fridge')
-
-    const nodeId = tree.add({
-      parentId: kitchen,
-      kind: 'consumer',
-      name: type.name,
-      typeId: type.id,
-      typeName: type.name,
-    })
-
-    expect(tree.nodes[nodeId]).toMatchObject({
-      kind: 'consumer',
-      name: 'Холодильник',
-      typeId: 'fridge',
-      typeName: 'Холодильник',
-      childIds: [],
-      quantity: 1,
-    })
-  })
-
-  it('V2.3 — renaming the node leaves the catalog row untouched (FR-024)', () => {
-    const tree = useTreeStore()
-    const catalog = useCatalogStore()
-    const kitchen = tree.add({ parentId: tree.rootId, kind: 'panel', name: 'Кухня' })
-    const nodeId = tree.add({
-      parentId: kitchen,
-      kind: 'consumer',
-      name: 'Холодильник',
-      typeId: 'fridge',
-      typeName: 'Холодильник',
-    })
-
-    tree.rename(nodeId, 'Холодильник у ніші')
-
-    expect(tree.nodes[nodeId].name).toBe('Холодильник у ніші')
-    expect(catalog.typeById('fridge').name).toBe('Холодильник')
-    // Placing the same type again still yields the catalog name.
-    const second = tree.add({
-      parentId: kitchen,
-      kind: 'consumer',
-      name: catalog.typeById('fridge').name,
-      typeId: 'fridge',
-      typeName: 'Холодильник',
-    })
-    expect(tree.nodes[second].name).toBe('Холодильник')
-  })
-
-  it('V2.4 — eight downlights are one node with a quantity of eight (FR-025)', () => {
-    const tree = useTreeStore()
-    const kitchen = tree.add({
-      parentId: tree.rootId,
-      kind: 'панель'.slice(0, 0) + 'panel',
-      name: 'Кухня',
-    })
-    const nodeId = tree.add({
-      parentId: kitchen,
-      kind: 'consumer',
-      name: 'Точковий світильник',
-      typeId: 'downlight',
-      typeName: 'Точковий світильник',
-    })
-
-    tree.setQuantity(nodeId, 8)
-
-    expect(tree.nodes[nodeId].quantity).toBe(8)
-    expect(tree.nodes[kitchen].childIds).toHaveLength(1)
-  })
-
-  it('V2.5 — at least 80 types across the eleven categories (FR-019, SC-003)', () => {
-    const catalog = useCatalogStore()
-
-    expect(catalog.types.length).toBeGreaterThanOrEqual(80)
-    expect(catalog.categories.length).toBe(11)
-    for (const category of catalog.categories) {
-      expect(catalog.find('', category.id).length).toBeGreaterThan(0)
-    }
-  })
-})
-
 describe('V3 — Save, reopen, survive (User Story 3)', () => {
-  /** The tree V3 works on: two panels, one with consumers, notes and quantities set. */
+  /** The tree V3 works on: two panels, one with a note and two consumers, one cable section set. */
   function buildProject() {
     const tree = useTreeStore()
     const kitchen = tree.add({ parentId: tree.rootId, kind: 'panel', name: 'Кухня' })
     tree.setNote(kitchen, 'щиток у коридорі')
-    const fridge = tree.add({
+    const sockets = tree.add({
+      parentId: kitchen,
+      kind: 'consumer',
+      name: 'Розетки фартуха кухні',
+      loadType: loadTypeRow(),
+      zone: zoneRow(),
+    })
+    tree.setCableSection(sockets, 2.5)
+    tree.add({
       parentId: kitchen,
       kind: 'consumer',
       name: 'Холодильник',
-      typeId: 'fridge',
-      typeName: 'Холодильник',
+      loadType: loadTypeRow(),
+      zone: zoneRow(),
     })
-    tree.setQuantity(fridge, 2)
     tree.add({ parentId: tree.rootId, kind: 'panel', name: 'Гараж' })
     return tree
   }
 
-  it('V3.1 — save, close, reopen: every name, quantity and note identical (FR-033, FR-035, SC-005)', async () => {
+  it('V3.1 — save, close, reopen: every consumer field and every note identical (FR-035, 002/FR-019)', async () => {
     const project = useProjectStore()
     const tree = buildProject()
     const before = tree.nodes
@@ -344,30 +260,43 @@ describe('V3 — Save, reopen, survive (User Story 3)', () => {
     await project.openPath(PATH)
 
     expect(tree.nodes).toEqual(before)
+    expect(Object.values(tree.nodes).map((n) => n.cableSectionMm2)).toEqual(
+      expect.arrayContaining([2.5, null]),
+    )
     expect(project.isDirty).toBe(false)
     expect(project.fileName).toBe(`квартира${PROJECT_EXTENSION}`)
   })
 
-  it('V3.2 — a type this build no longer ships still reads, from the stored typeName (FR-034)', async () => {
+  it('V3.2 — a file whose rows are missing or different locally opens with its own values (002/FR-018)', async () => {
     const project = useProjectStore()
     const tree = useTreeStore()
-    const catalog = useCatalogStore()
+    const local = useReferenceTablesStore().tables.loadTypes.find(
+      (row) => row.name === 'Розетки кухні (робоча зона)',
+    )
+    const edited = { ...local, name: 'Розетки кухні', demandFactor: 0.6 }
     const kitchen = tree.add({ parentId: tree.rootId, kind: 'panel', name: 'Кухня' })
-    const nodeId = tree.add({
+    const boiler = tree.add({
       parentId: kitchen,
       kind: 'consumer',
       name: 'Бойлер 2019',
-      typeId: 'type-from-2019',
-      typeName: 'Бойлер (каталог 2019)',
+      loadType: loadTypeRow({ id: 'lt-from-another-installation', name: 'Бойлер' }),
+      zone: zoneRow({ id: 'zn-from-another-installation', name: 'Котельня' }),
+    })
+    const sockets = tree.add({
+      parentId: kitchen,
+      kind: 'consumer',
+      name: 'Розетки кухні',
+      loadType: edited,
+      zone: zoneRow(),
     })
     await project.saveAs()
     project.newProject()
 
     await project.openPath(PATH)
 
-    expect(catalog.typeById('type-from-2019')).toBeUndefined()
-    expect(tree.nodes[nodeId].name).toBe('Бойлер 2019')
-    expect(tree.nodes[nodeId].typeName).toBe('Бойлер (каталог 2019)')
+    expect(tree.nodes[boiler].name).toBe('Бойлер 2019')
+    expect(tree.nodes[boiler].loadType.id).toBe('lt-from-another-installation')
+    expect(tree.nodes[sockets].loadType).toEqual(edited)
   })
 
   it('V3.3 — a truncated file is refused whole, naming the element, project untouched (FR-036)', async () => {

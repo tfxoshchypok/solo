@@ -1,6 +1,6 @@
 // One filesystem interface, two implementations. Everything above this line — the project file
-// service, the catalog file service — talks only to this shape, which is why no test and no
-// browser dev session ever touches a real file (contracts/services.md).
+// service, the reference tables file service — talks only to this shape, which is why no test and
+// no browser dev session ever touches a real file (contracts/services.md).
 //
 // MemoryFs imports FsError from here, so this module and MemoryFs form an import cycle. It is
 // safe because FsError is only ever referenced inside a method body, never while a module

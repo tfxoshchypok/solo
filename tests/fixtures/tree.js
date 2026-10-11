@@ -16,7 +16,6 @@ function walk(spec, parentId, nodes) {
   const node = { ...rest, parentId, childIds: children.map((c) => c.id) }
   if (node.kind === 'consumer') {
     node.childIds = []
-    node.quantity = node.quantity ?? 1
   } else {
     node.childrenKind = childrenKindOf(children)
   }
@@ -29,9 +28,42 @@ function childrenKindOf(children) {
   return children[0].kind === 'consumer' ? 'consumers' : 'panels'
 }
 
-/** A consumer child literal for `tree()`. */
-export function consumer(id, typeId, extra = {}) {
-  return { id, kind: 'consumer', name: id, typeId, ...extra }
+/** A whole load types row, every cell but the name empty. Its id is in no table, which is valid. */
+export function loadTypeRow(fields = {}) {
+  return {
+    id: 'lt-test',
+    name: 'Тестовий тип',
+    ratedPowerKw: null,
+    phases: null,
+    breakerCurve: null,
+    continuous: null,
+    powerFactor: null,
+    demandFactor: null,
+    rcdType: null,
+    ...fields,
+  }
+}
+
+/** A whole zones row, every cell but the name empty. */
+export function zoneRow(fields = {}) {
+  return {
+    id: 'zn-test',
+    name: 'Тестова зона',
+    rcdRequired: null,
+    leakageMa: null,
+    minIp: null,
+    separateRcd: null,
+    purpose: null,
+    ...fields,
+  }
+}
+
+/** A consumer child literal for `tree()`, holding copies of whole rows (002/FR-010). */
+export function consumer(
+  id,
+  { loadType = loadTypeRow(), zone = zoneRow(), cableSectionMm2 = null, ...extra } = {},
+) {
+  return { id, kind: 'consumer', name: id, loadType, zone, cableSectionMm2, ...extra }
 }
 
 /** A chain of `count` panels below the entry, ids p1 … pN. */

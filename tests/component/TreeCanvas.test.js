@@ -20,7 +20,7 @@ const twoBranches = () =>
     kind: 'entry',
     name: 'Ввід',
     children: [
-      { id: 'p1', kind: 'panel', name: 'Кухня', children: [consumer('c1', 'lamp')] },
+      { id: 'p1', kind: 'panel', name: 'Кухня', children: [consumer('c1')] },
       {
         id: 'p2',
         kind: 'panel',

@@ -6,6 +6,9 @@
 // `nodes[id].name = x` anywhere in the codebase throws on the spot instead of silently rewriting
 // every snapshot that shares the object (R5).
 import { produce } from 'immer'
+import * as v from 'valibot'
+import { LoadTypeSchema, ZoneSchema } from '@/schemas/index.js'
+import { columnOf } from '@/modules/reference/config/columns.js'
 import { canAccept, childrenKindAfter } from './homogeneity.js'
 
 /** Panel levels allowed below the service entry (FR-007). A consumer may sit one level deeper. */
@@ -31,6 +34,52 @@ function require_(nodes, nodeId) {
     throw new RuleError({ code: 'noSuchNode', message: `Вузла ${nodeId} немає в проекті.` })
   }
   return node
+}
+
+function requireConsumer(nodes, nodeId) {
+  const node = require_(nodes, nodeId)
+  if (node.kind !== 'consumer') {
+    throw new RuleError({
+      code: 'notAConsumer',
+      message: `«${node.name}» — не кінцевий споживач: тип навантаження, зона й переріз є лише в споживача.`,
+    })
+  }
+  return node
+}
+
+// A consumer's load type and zone are both required, each as a copy of a whole row, id included
+// (002/FR-010). The caller hands over the row it found in the reference store; the engine copies it,
+// so a later edit of the table never reaches the consumer (002/FR-021). The row must carry an id,
+// because `ConsumerNodeSchema` refuses an empty one.
+const REFERENCE_REQUIRED = {
+  loadType: {
+    code: 'loadTypeRequired',
+    message: 'Кінцевий споживач створюється з типу навантаження.',
+    fix: 'Виберіть тип навантаження.',
+  },
+  zone: {
+    code: 'zoneRequired',
+    message: 'Кінцевому споживачу потрібна зона.',
+    fix: 'Виберіть зону.',
+  },
+}
+
+/** @returns {object} a copy of `row`, which rows being flat makes complete */
+function copyOfRow(part, row) {
+  if (String(row?.id ?? '').trim() === '') throw new RuleError(REFERENCE_REQUIRED[part])
+  return { ...row }
+}
+
+// Which table a copy came from, and the schema its values follow (002/FR-021 → 002/FR-006).
+const COPY_PARTS = {
+  loadType: { table: 'loadTypes', schema: LoadTypeSchema },
+  zone: { table: 'zones', schema: ZoneSchema },
+}
+
+const COPY_VALUE_RULE = {
+  number: 'число або порожньо',
+  yesno: '«так», «ні» або порожньо',
+  text: 'текст до 2000 символів або порожньо',
 }
 
 // ---------------------------------------------------------------- queries
@@ -118,10 +167,10 @@ function refreshChildrenKind(draft, parentId) {
 
 /**
  * @returns {{ nodes: object, nodeId: string }}
- * @throws {RuleError} homogeneity (FR-015), depth (FR-007), a consumer with no catalog type
- *   (FR-023), or the entry's protections (FR-002)
+ * @throws {RuleError} homogeneity (FR-015), depth (FR-007), a consumer with no load type or no zone
+ *   (002/FR-010), or the entry's protections (FR-002)
  */
-export function addNode(nodes, { parentId, kind, name, typeId, typeName }) {
+export function addNode(nodes, { parentId, kind, name, loadType, zone }) {
   require_(nodes, parentId)
 
   const verdict = canAccept(nodes, parentId, kind)
@@ -140,23 +189,10 @@ export function addNode(nodes, { parentId, kind, name, typeId, typeName }) {
     })
   }
 
-  // Every consumer comes from a catalog type (FR-023), and carries that type's name so the file
-  // still reads after the type leaves the catalog (FR-034).
-  if (kind === 'consumer' && String(typeId ?? '').trim() === '') {
-    throw new RuleError({
-      code: 'typeRequired',
-      message: 'Кінцевий споживач створюється з типу каталогу.',
-      fix: 'Виберіть тип у каталозі, а потім розмістіть його в щитку.',
-    })
-  }
-
-  if (kind === 'consumer' && String(typeName ?? '').trim() === '') {
-    throw new RuleError({
-      code: 'typeNameRequired',
-      message: 'Назва типу не передана разом з типом.',
-      fix: 'Передайте `typeName` поруч із `typeId` — її беруть із рядка каталогу.',
-    })
-  }
+  const copies =
+    kind === 'consumer'
+      ? { loadType: copyOfRow('loadType', loadType), zone: copyOfRow('zone', zone) }
+      : null
 
   const landingDepth = depthOf(nodes, parentId) + 1
   if (kind === 'panel' && landingDepth > MAX_PANEL_DEPTH) refuseDepth(landingDepth)
@@ -171,9 +207,9 @@ export function addNode(nodes, { parentId, kind, name, typeId, typeName }) {
             name,
             parentId,
             childIds: [],
-            typeId,
-            typeName,
-            quantity: 1,
+            loadType: copies.loadType,
+            zone: copies.zone,
+            cableSectionMm2: null,
           }
         : { id: nodeId, kind, name, parentId, childIds: [], childrenKind: 'undecided' }
     draft[parentId].childIds.push(nodeId)
@@ -257,28 +293,80 @@ export function reorderSibling(nodes, nodeId, index) {
 }
 
 /**
- * How many identical units one consumer node stands for — eight downlights are one node with a
- * quantity of eight, not eight siblings (FR-025). Guarded rather than clamped: a caller passing
- * 0 or 2.5 has a bug, and silently rounding it would hide the bug behind a plausible tree.
+ * Replaces the consumer's load type copy with a fresh copy of `loadType`, values changed by hand
+ * included, even when it is the row the copy came from (002/FR-014). The name follows the new row
+ * only while it still equals the copied load type name, so a name the user typed stays.
  * @returns {object} nodes
  */
-export function setQuantity(nodes, nodeId, quantity) {
-  const node = require_(nodes, nodeId)
-  if (node.kind !== 'consumer') {
+export function setConsumerLoadType(nodes, nodeId, loadType) {
+  const node = requireConsumer(nodes, nodeId)
+  const copy = copyOfRow('loadType', loadType)
+  const follows = node.name === node.loadType.name
+  return produce(nodes, (draft) => {
+    draft[nodeId].loadType = copy
+    if (follows) draft[nodeId].name = copy.name
+  })
+}
+
+/** Replaces the consumer's zone copy with a fresh copy of `zone`; the name stays. @returns {object} nodes */
+export function setConsumerZone(nodes, nodeId, zone) {
+  requireConsumer(nodes, nodeId)
+  const copy = copyOfRow('zone', zone)
+  return produce(nodes, (draft) => {
+    draft[nodeId].zone = copy
+  })
+}
+
+/**
+ * Sets one value of the consumer's copy, `part` being `'loadType'` or `'zone'`; the table and every
+ * other consumer stay as they were (002/FR-021). `value` is already parsed, as the table's cells are.
+ * The id and the name are locked: only choosing a row changes them, and 002/FR-014 renames a
+ * consumer by comparing its name with the copied name.
+ * @returns {object} nodes
+ * @throws {RuleError} `copyKeyLocked`, `unknownColumn`, or `badCopyValue` naming the column's header
+ */
+export function setConsumerCopyValue(nodes, nodeId, part, key, value) {
+  const node = requireConsumer(nodes, nodeId)
+  if (key === 'id' || key === 'name') {
     throw new RuleError({
-      code: 'quantityOnNonConsumer',
-      message: `«${node.name}» — не кінцевий споживач, кількість до нього не застосовується.`,
+      code: 'copyKeyLocked',
+      message: 'Назва з довідника змінюється лише вибором іншого рядка.',
+      fix: 'Виберіть рядок у списку.',
     })
   }
-  if (!Number.isInteger(quantity) || quantity < 1) {
+  const column = columnOf(COPY_PARTS[part]?.table, key)
+  if (!column) {
+    throw new RuleError({ code: 'unknownColumn', message: `У цьому рядку немає колонки «${key}».` })
+  }
+  const next = { ...node[part], [key]: value }
+  if (!v.safeParse(COPY_PARTS[part].schema, next).success) {
     throw new RuleError({
-      code: 'badQuantity',
-      message: 'Кількість — ціле число, не менше 1.',
-      fix: 'Введіть 1 або більше.',
+      code: 'badCopyValue',
+      message: `«${column.header}»: тут має бути ${COPY_VALUE_RULE[column.kind]}.`,
     })
   }
   return produce(nodes, (draft) => {
-    draft[nodeId].quantity = quantity
+    draft[nodeId][part][key] = value
+  })
+}
+
+/**
+ * The actual conductor cross-section of the installed cable, in mm² (002/FR-011): empty (`null`)
+ * until the cable is laid, otherwise a finite number above zero. Stored as given — nothing is
+ * computed from it (002/FR-020).
+ * @returns {object} nodes
+ */
+export function setCableSection(nodes, nodeId, mm2) {
+  requireConsumer(nodes, nodeId)
+  if (mm2 !== null && !(typeof mm2 === 'number' && Number.isFinite(mm2) && mm2 > 0)) {
+    throw new RuleError({
+      code: 'badCableSection',
+      message: 'Переріз кабелю — число більше нуля, у мм², або порожньо.',
+      fix: 'Введіть, наприклад, 2,5 або залиште поле порожнім.',
+    })
+  }
+  return produce(nodes, (draft) => {
+    draft[nodeId].cableSectionMm2 = mm2
   })
 }
 
@@ -332,13 +420,20 @@ export function wrapChildrenInPanel(nodes, parentId, panelName) {
 }
 
 /**
- * A free-text note on any kind of node (FR-012). An empty note deletes the field instead of
+ * A free-text note on the entry or a panel (FR-012). A consumer has none: its field list is
+ * name, load type, zone and cable section (002/FR-009). An empty note deletes the field instead of
  * storing `''`: the schema marks `note` optional, so an absent note and a blank one would
  * otherwise be two spellings of the same thing in every saved file.
  * @returns {object} nodes
  */
 export function setNote(nodes, nodeId, note) {
-  require_(nodes, nodeId)
+  const node = require_(nodes, nodeId)
+  if (node.kind === 'consumer') {
+    throw new RuleError({
+      code: 'noteOnConsumer',
+      message: `«${node.name}» — кінцевий споживач, нотатки в нього немає.`,
+    })
+  }
   const trimmed = String(note ?? '').trim()
   return produce(nodes, (draft) => {
     if (trimmed === '') delete draft[nodeId].note

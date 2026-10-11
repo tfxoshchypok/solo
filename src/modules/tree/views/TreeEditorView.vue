@@ -5,7 +5,7 @@
 // Every refusal from the engine arrives here as a `RuleError`. Two of them carry a `fix`, and
 // those open the dialog instead of a message: a refusal the user cannot act on is a dead end,
 // and the homogeneity rule is the one rule the model will not bend on (FR-015).
-import { computed, h, onBeforeUnmount, ref } from 'vue'
+import { computed, h, ref } from 'vue'
 import { NButton, NDivider, NDropdown, NIcon, NSpace, NTooltip, useMessage } from 'naive-ui'
 import {
   AddOutline,
@@ -24,36 +24,16 @@ import AddConsumerDialog from '../components/AddConsumerDialog.vue'
 import { useTreeStore } from '../stores/tree.js'
 import { RuleError, descendantIds } from '../engine/treeOps.js'
 import { useConfirm } from '@/composables/useConfirm.js'
-import { useExitPrompt } from '@/composables/useExitPrompt.js'
 import { useKeyboardTree } from '@/composables/useKeyboardTree.js'
 import { useProjectStore } from '@/stores/project.js'
-import { LoadError } from '@/services/ProjectFileService.js'
-import { decideExit, setExitDecision } from '@/services/closeGuard.js'
+import { LoadError } from '@/services/LoadError.js'
 
 const tree = useTreeStore()
 const project = useProjectStore()
 const message = useMessage()
 const confirm = useConfirm()
-const promptExit = useExitPrompt()
-
-// Closing the window with unsaved work asks first (FR-031). A failed save is reported here and
-// keeps the window open, so the error is not the last thing the user sees before the exit.
-const unregisterExitDecision = setExitDecision(() =>
-  decideExit({
-    isDirty: () => project.isDirty,
-    prompt: promptExit,
-    save: async () => {
-      try {
-        return await project.save()
-      } catch (error) {
-        report(error)
-        throw error
-      }
-    },
-    discard: () => project.discardUnsaved(),
-  }),
-)
-onBeforeUnmount(unregisterExitDecision)
+// The unsaved-changes prompt on window close is registered by `AppLayout.vue`, which stays mounted
+// whichever section is open (002/FR-008, research R10).
 
 const inspector = ref(null)
 const picking = ref(false)

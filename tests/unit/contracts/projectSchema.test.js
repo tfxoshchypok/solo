@@ -6,6 +6,12 @@ import { readFileSync } from 'node:fs'
 import { buildJsonSchema, serialize, OUTPUT_PATH } from '../../../scripts/emit-project-schema.mjs'
 
 describe('contracts/project-file.schema.json', () => {
+  it('is the feature 002 contract', () => {
+    expect(OUTPUT_PATH.replaceAll('\\', '/')).toMatch(
+      /specs\/002-reference-tables-consumer-fields\/contracts\/project-file\.schema\.json$/,
+    )
+  })
+
   it('is what `npm run schema:emit` produces right now', () => {
     const committed = readFileSync(OUTPUT_PATH, 'utf8')
     expect(committed).toBe(serialize(buildJsonSchema()))
@@ -15,7 +21,6 @@ describe('contracts/project-file.schema.json', () => {
     const schema = buildJsonSchema()
     expect(Object.keys(schema.properties)).toEqual([
       'schemaVersion',
-      'catalogVersion',
       'name',
       'createdAt',
       'modifiedAt',

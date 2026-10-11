@@ -22,7 +22,6 @@
     "@vee-validate/valibot": "4.15.1",
     "@vicons/ionicons5": "0.13.0",
     "@vueuse/core": "14.4.0",
-    "fuse.js": "7.5.0",
     "immer": "11.1.18",
     "naive-ui": "2.45.3",
     "pinia": "4.0.3",

@@ -21,7 +21,7 @@ function twoBranches() {
     kind: 'entry',
     name: 'Ввід',
     children: [
-      { id: 'kitchen', kind: 'panel', name: 'Кухня', children: [consumer('lamp', 'lamp')] },
+      { id: 'kitchen', kind: 'panel', name: 'Кухня', children: [consumer('lamp')] },
       { id: 'floor', kind: 'panel', name: 'Поверх' },
     ],
   })

@@ -1,6 +1,7 @@
 // The normalized tree, the selection, and the undo/redo handle.
 //
-// The store calls engines and reads the catalog store; it never touches the filesystem. Structural
+// The store calls engines and reads the reference tables store, to find the row a consumer copies
+// (002/FR-010); it never touches the filesystem. Structural
 // change goes through treeOps, which returns a new frozen map, so `commit()` on the history handle
 // costs a reference rather than a deep clone — that is why `clone: false` is correct here (R5).
 import { defineStore } from 'pinia'
@@ -8,6 +9,7 @@ import { computed, ref } from 'vue'
 import { useManualRefHistory } from '@vueuse/core'
 import { freeze } from 'immer'
 import { childrenKindAfter } from '../engine/homogeneity.js'
+import { useReferenceTablesStore } from '@/modules/reference/stores/referenceTables.js'
 import {
   addNode,
   moveNode,
@@ -15,7 +17,10 @@ import {
   renameNode,
   reorderSibling,
   setNote as setNoteOn,
-  setQuantity as setQuantityOn,
+  setConsumerLoadType,
+  setConsumerZone,
+  setConsumerCopyValue,
+  setCableSection as setCableSectionOn,
   wrapChildrenInPanel,
 } from '../engine/treeOps.js'
 
@@ -116,14 +121,8 @@ export const useTreeStore = defineStore('tree', () => {
     history.commit()
   }
 
-  function add({ parentId, kind, name, typeId, typeName }) {
-    const { nodes: next, nodeId } = addNode(nodes.value, {
-      parentId,
-      kind,
-      name,
-      typeId,
-      typeName,
-    })
+  function add({ parentId, kind, name, loadType, zone }) {
+    const { nodes: next, nodeId } = addNode(nodes.value, { parentId, kind, name, loadType, zone })
     apply(next)
     // The parent opens whatever was added: a new panel is a place the user is about to fill, and a
     // new consumer is a row they need to see to rename it.
@@ -139,8 +138,24 @@ export const useTreeStore = defineStore('tree', () => {
     apply(setNoteOn(nodes.value, nodeId, note))
   }
 
-  function setQuantity(nodeId, quantity) {
-    apply(setQuantityOn(nodes.value, nodeId, quantity))
+  /** The row as it stands in the table at this moment; the engine copies it (002/FR-014). */
+  function setLoadType(nodeId, loadTypeId) {
+    const { loadTypeById } = useReferenceTablesStore()
+    apply(setConsumerLoadType(nodes.value, nodeId, loadTypeById.get(loadTypeId)))
+  }
+
+  function setZone(nodeId, zoneId) {
+    const { zoneById } = useReferenceTablesStore()
+    apply(setConsumerZone(nodes.value, nodeId, zoneById.get(zoneId)))
+  }
+
+  /** One value of the consumer's copy; the reference tables are never touched (002/FR-021). */
+  function setCopyValue(nodeId, part, key, value) {
+    apply(setConsumerCopyValue(nodes.value, nodeId, part, key, value))
+  }
+
+  function setCableSection(nodeId, mm2) {
+    apply(setCableSectionOn(nodes.value, nodeId, mm2))
   }
 
   /** @returns {string[]} the ids that went, which the confirmation counted beforehand (FR-010) */
@@ -248,7 +263,10 @@ export const useTreeStore = defineStore('tree', () => {
     add,
     rename,
     setNote,
-    setQuantity,
+    setLoadType,
+    setZone,
+    setCopyValue,
+    setCableSection,
     wrapConsumersAndAdd,
     wrapConsumersAndMove,
     remove,

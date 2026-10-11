@@ -1,13 +1,12 @@
 <script setup>
-// Picking a type is how a consumer comes into being (FR-023), so this dialog is the whole of the
-// catalog's presence in the product: a search box, a category filter, and a list. There is no
-// catalog screen — a list you browse without placing anything would be a reference book, and the
-// user came here to build a tree.
+// A consumer is created from a load type and a zone, and named after the load type (002/FR-012).
+// Both lists are the reference tables as they stand now, so a row added or deleted in «Довідники»
+// is offered or gone here at once; an empty table offers nothing, and «Додати» stays disabled.
 import { computed, nextTick, ref, watch } from 'vue'
-import { NEmpty, NInput, NModal, NScrollbar, NSelect, NTag, NText } from 'naive-ui'
+import { NButton, NForm, NFormItem, NModal, NSelect } from 'naive-ui'
 import { useTreeStore } from '../stores/tree.js'
-import { useCatalogStore } from '../stores/catalog.js'
 import { RuleError } from '../engine/treeOps.js'
+import { useReferenceTablesStore } from '@/modules/reference/stores/referenceTables.js'
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -18,45 +17,39 @@ const props = defineProps({
 const emit = defineEmits(['placed', 'refused', 'cancel'])
 
 const tree = useTreeStore()
-const catalog = useCatalogStore()
+const reference = useReferenceTablesStore()
 
-const query = ref('')
-const categoryId = ref(null)
-const searchInput = ref(null)
+const loadTypeId = ref(null)
+const zoneId = ref(null)
+const loadTypeSelect = ref(null)
 
-const categoryOptions = computed(() => [
-  { label: 'Усі категорії', value: null },
-  ...catalog.categories.map((c) => ({ label: c.name, value: c.id })),
-])
+const optionsOf = (rows) => rows.map((row) => ({ label: row.name, value: row.id }))
+const loadTypeOptions = computed(() => optionsOf(reference.tables.loadTypes))
+const zoneOptions = computed(() => optionsOf(reference.tables.zones))
 
-const results = computed(() => catalog.find(query.value, categoryId.value))
-
-function categoryNameOf(type) {
-  return catalog.categoryById(type?.categoryId)?.name ?? ''
-}
+// A chosen row can be deleted while the dialog is open; an id that no longer resolves names nothing.
+const canPlace = computed(
+  () => reference.loadTypeById.has(loadTypeId.value) && reference.zoneById.has(zoneId.value),
+)
 
 /** A reopened dialog starts clean, with the cursor where typing is expected (SC-004). */
 watch(
   () => props.show,
   async (open) => {
     if (!open) return
-    query.value = ''
-    categoryId.value = null
+    loadTypeId.value = null
+    zoneId.value = null
     await nextTick()
-    searchInput.value?.focus()
+    loadTypeSelect.value?.focus()
   },
 )
 
-function place(type) {
-  if (!type || !props.parentId) return
-  // The node is named after the type and can be renamed afterwards; `typeName` keeps the original
-  // so the file still reads if the type later leaves the catalog (FR-024, FR-034).
-  const request = {
-    kind: 'consumer',
-    name: type.name,
-    typeId: type.id,
-    typeName: type.name,
-  }
+/** The rows are looked up as they stand now; the engine stores copies of them (002/FR-010). */
+function place({ loadTypeId: chosenLoadType, zoneId: chosenZone }) {
+  const loadType = reference.loadTypeById.get(chosenLoadType)
+  const zone = reference.zoneById.get(chosenZone)
+  if (!loadType || !zone || !props.parentId) return
+  const request = { kind: 'consumer', name: loadType.name, loadType, zone }
   try {
     emit('placed', tree.add({ parentId: props.parentId, ...request }))
   } catch (error) {
@@ -67,7 +60,7 @@ function place(type) {
   }
 }
 
-defineExpose({ results, place, categoryNameOf })
+defineExpose({ place })
 </script>
 
 <template>
@@ -79,32 +72,35 @@ defineExpose({ results, place, categoryNameOf })
     :bordered="false"
     @close="emit('cancel')"
   >
-    <div class="add-consumer-filters">
-      <n-input
-        ref="searchInput"
-        v-model:value="query"
-        placeholder="Назва українською або англійською"
-        clearable
-      />
-      <n-select v-model:value="categoryId" :options="categoryOptions" class="add-consumer-cat" />
-    </div>
-
-    <n-scrollbar class="add-consumer-list">
-      <n-empty v-if="results.length === 0" size="small" description="Нічого не знайдено" />
-      <button
-        v-for="type in results"
-        :key="type.id"
-        type="button"
-        class="add-consumer-row"
-        @click="place(type)"
-      >
-        <span class="app-ellipsis">{{ type.name }}</span>
-        <n-tag size="small" :bordered="false">{{ categoryNameOf(type) }}</n-tag>
-      </button>
-    </n-scrollbar>
+    <n-form label-placement="top" @submit.prevent>
+      <n-form-item label="Тип навантаження">
+        <!-- 41 rows at most: no virtual scroll, so every option is a real element. -->
+        <n-select
+          ref="loadTypeSelect"
+          v-model:value="loadTypeId"
+          :options="loadTypeOptions"
+          :virtual-scroll="false"
+          filterable
+          placeholder="Почніть вводити назву"
+        />
+      </n-form-item>
+      <n-form-item label="Зона">
+        <n-select
+          v-model:value="zoneId"
+          :options="zoneOptions"
+          :virtual-scroll="false"
+          placeholder="Виберіть зону"
+        />
+      </n-form-item>
+    </n-form>
 
     <template #footer>
-      <n-text depth="3">Знайдено типів: {{ results.length }}</n-text>
+      <div class="add-consumer-actions">
+        <n-button @click="emit('cancel')">Скасувати</n-button>
+        <n-button type="primary" :disabled="!canPlace" @click="place({ loadTypeId, zoneId })">
+          Додати
+        </n-button>
+      </div>
     </template>
   </n-modal>
 </template>
@@ -115,39 +111,9 @@ defineExpose({ results, place, categoryNameOf })
   max-width: 90vw;
 }
 
-.add-consumer-filters {
+.add-consumer-actions {
   display: flex;
+  justify-content: flex-end;
   gap: 8px;
-  margin-bottom: var(--app-gutter);
-}
-
-.add-consumer-cat {
-  width: 200px;
-  flex-shrink: 0;
-}
-
-.add-consumer-list {
-  max-height: 320px;
-}
-
-.add-consumer-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.add-consumer-row:hover,
-.add-consumer-row:focus-visible {
-  background: var(--app-bg-subtle);
 }
 </style>

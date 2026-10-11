@@ -4,7 +4,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setFs, MemoryFs } from '@/services/fs/index.js'
 import { ProjectFileService, denormalize } from '@/services/ProjectFileService.js'
-import { createCloseHandler, decideExit } from '@/services/closeGuard.js'
+import { createCloseHandler, decideExit, flushPendingWrites } from '@/services/closeGuard.js'
+import { ReferenceTablesFileService } from '@/services/ReferenceTablesFileService.js'
 import { tree, consumer } from '../../fixtures/tree.js'
 
 const PATH = '/home/user/квартира.eltree.json'
@@ -20,11 +21,11 @@ function sample(panelName) {
           id: 'kitchen',
           kind: 'panel',
           name: panelName,
-          children: [consumer('fridge-node', 'fridge', { typeName: 'Холодильник' })],
+          children: [consumer('fridge-node', { name: 'Холодильник' })],
         },
       ],
     }),
-    { name: 'Квартира', catalogVersion: '2026.09.1' },
+    { name: 'Квартира' },
   )
 }
 
@@ -87,6 +88,51 @@ describe('the window-close guard keeps the last change (FR-031)', () => {
     await createCloseHandler({ flush, exit })()
 
     expect(exit).toHaveBeenCalledTimes(1)
+  })
+})
+
+/** MemoryFs whose writes wait until the test lets them through. */
+class GatedFs extends MemoryFs {
+  hold() {
+    let release
+    this.gate = new Promise((resolve) => (release = resolve))
+    return () => {
+      this.gate = null
+      release()
+    }
+  }
+
+  async writeText(path, text) {
+    if (this.gate) await this.gate
+    return super.writeText(path, text)
+  }
+}
+
+describe('the window-close flush covers every pending write (FR-031, research R4)', () => {
+  it('waits for a reference tables write that has not finished yet', async () => {
+    const gated = new GatedFs()
+    setFs(gated)
+    const release = gated.hold()
+    const saving = ReferenceTablesFileService.save(ReferenceTablesFileService.loadBuiltin())
+
+    let flushed = false
+    const flushing = flushPendingWrites().then(() => {
+      flushed = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(flushed).toBe(false)
+
+    release()
+    await Promise.all([saving, flushing])
+    expect(flushed).toBe(true)
+  })
+
+  it('still writes the queued project sidecar', async () => {
+    ProjectFileService.scheduleAutosave(sample('Кухня перед закриттям'), PATH)
+
+    await flushPendingWrites()
+
+    expect(await ProjectFileService.findRecovery(PATH)).not.toBeNull()
   })
 })
 

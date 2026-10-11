@@ -4,6 +4,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router/index.js'
 import { TreeModule } from './modules/tree/index.js'
+import { ReferenceModule } from './modules/reference/index.js'
 import { installCloseGuard } from './services/closeGuard.js'
 import './assets/main.css'
 
@@ -56,10 +57,11 @@ router.isReady().then(() => {
 const app = createApp(App)
 app.use(createPinia())
 
-// The module route has to exist before the router is installed: `app.use(router)` starts the
+// The module routes have to exist before the router is installed: `app.use(router)` starts the
 // initial navigation on the spot, and `/` redirects to `/tree`. Installing the router first left
 // that redirect with nothing to match.
 app.use(TreeModule, { router })
+app.use(ReferenceModule, { router })
 app.use(router)
 
 app.mount('#app')

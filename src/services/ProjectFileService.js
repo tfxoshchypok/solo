@@ -7,6 +7,7 @@
 import * as v from 'valibot'
 import { ProjectSchema, SCHEMA_VERSION, formatIssuePath } from '@/schemas/index.js'
 import { getFs } from './fs/index.js'
+import { LoadError } from './LoadError.js'
 import { appDataDir, autosavePath, join, tmpPath } from './PathService.js'
 
 /** How long the editor stays quiet before the sidecar is rewritten (R2). */
@@ -14,22 +15,6 @@ export const AUTOSAVE_DELAY_MS = 400
 
 /** Where a never-saved project's sidecar waits, since it has no path of its own yet. */
 export const UNSAVED_SIDECAR_NAME = 'unsaved.autosave.json'
-
-/**
- * A file that cannot become a project. `path` is the failing element inside the file —
- * `nodes[42].quantity` — not the path on disk, because that is what FR-036 asks the user to be
- * told. `expected` and `received` are valibot's own words for the same issue.
- */
-export class LoadError extends Error {
-  constructor({ path, expected, received, message, cause }) {
-    super(message ?? `Файл проєкту пошкоджений: ${path}`)
-    this.name = 'LoadError'
-    this.path = path ?? ''
-    this.expected = expected
-    this.received = received
-    if (cause) this.cause = cause
-  }
-}
 
 function fail(details) {
   throw new LoadError(details)
@@ -60,13 +45,12 @@ export function normalize(project) {
  * point: losing a subtree silently is worse than a save the next `load` refuses out loud.
  *
  * @param {{ rootId: string, nodes: object }} tree
- * @param {{ name?: string, catalogVersion?: string|null, createdAt?: string }} meta
+ * @param {{ name?: string, createdAt?: string }} meta
  */
 export function denormalize({ rootId, nodes }, meta = {}) {
   const now = new Date().toISOString()
   return {
     schemaVersion: SCHEMA_VERSION,
-    catalogVersion: String(meta.catalogVersion ?? ''),
     name: meta.name ?? 'Новий проект',
     createdAt: meta.createdAt ?? now,
     modifiedAt: now,
@@ -265,8 +249,9 @@ function checkStructure(project) {
  * Parse, then the schema, then the tree itself. A failure at any stage throws `LoadError` and
  * nothing is returned, which is what keeps a broken file from reaching the store (FR-035, FR-036).
  *
- * A `typeId` the current catalog no longer ships is deliberately not checked here: the node
- * carries its own `typeName` and still reads (FR-034).
+ * A consumer's `loadType` and `zone` copies are deliberately never compared with the local reference
+ * tables: a project from another installation opens with its own values, even when no local row
+ * holds the copied id or a row holds other values, and nothing is shown as absent (002/FR-018).
  *
  * @param {string} path
  * @returns {Promise<{ project: object }>}

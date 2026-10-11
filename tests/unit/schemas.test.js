@@ -3,11 +3,12 @@ import * as v from 'valibot'
 import {
   ProjectSchema,
   NodeSchema,
-  ConsumerTypeSchema,
+  LoadTypeSchema,
+  ZoneSchema,
+  ReferenceTablesSchema,
   SCHEMA_VERSION,
   formatIssuePath,
 } from '@/schemas/index.js'
-import builtinCatalog from '@/data/catalog.builtin.json'
 
 const entry = {
   id: 'n-root',
@@ -25,21 +26,45 @@ const panel = {
   childIds: [],
   childrenKind: 'undecided',
 }
+// Feature 002 — the rows of the two reference tables (data-model.md). An empty cell is `null`, never
+// absent and never '', so every row carries every key.
+const loadTypeRow = (over = {}) => ({
+  id: 'lt-6d0f8a52-1c3e-4b7a-9f21-0e5b7c4d2a19',
+  name: 'Варильна поверхня',
+  ratedPowerKw: null,
+  phases: null,
+  breakerCurve: null,
+  continuous: null,
+  powerFactor: null,
+  demandFactor: null,
+  rcdType: null,
+  ...over,
+})
+const zoneRow = (over = {}) => ({
+  id: 'zn-2b91c7e4-5a60-4f3d-8e12-7c9a0b6d4f38',
+  name: 'Критична безперервна лінія',
+  rcdRequired: null,
+  leakageMa: null,
+  minIp: null,
+  separateRcd: null,
+  purpose: null,
+  ...over,
+})
+// A consumer holds whole copies of the rows it was given (002/FR-010).
 const consumerNode = (over = {}) => ({
   id: 'n-1',
   kind: 'consumer',
   name: 'Холодильник',
   parentId: 'n-root',
   childIds: [],
-  typeId: 'fridge',
-  typeName: 'Холодильник',
-  quantity: 1,
+  loadType: loadTypeRow(),
+  zone: zoneRow(),
+  cableSectionMm2: null,
   ...over,
 })
 
 const project = (over = {}) => ({
   schemaVersion: SCHEMA_VERSION,
-  catalogVersion: '2026.09.1',
   name: 'Квартира на Лесі Українки',
   createdAt: '2026-09-07T10:14:02.000Z',
   modifiedAt: '2026-09-07T11:02:41.000Z',
@@ -63,21 +88,82 @@ describe('NodeSchema — the three kinds and their per-kind fields (FR-003)', ()
     expect(v.safeParse(NodeSchema, consumerNode({ childIds: ['n-2'] })).success).toBe(false)
   })
 
-  it('refuses a consumer without typeName, which keeps the file readable (FR-034)', () => {
-    const { typeName, ...withoutTypeName } = consumerNode()
-    expect(typeName).toBe('Холодильник')
-    expect(v.safeParse(NodeSchema, withoutTypeName).success).toBe(false)
-    expect(v.safeParse(NodeSchema, consumerNode({ typeName: '' })).success).toBe(false)
+  it('accepts an optional note on the entry and on a panel (FR-012)', () => {
+    expect(v.safeParse(NodeSchema, { ...entry, note: 'лічильник у під’їзді' }).output.note).toBe(
+      'лічильник у під’їзді',
+    )
+    expect(v.safeParse(NodeSchema, { ...panel, note: 'другий поверх' }).output.note).toBe(
+      'другий поверх',
+    )
+  })
+})
+
+describe('NodeSchema — the consumer is exactly its field list (002/FR-009, 002/FR-010, 002/FR-011)', () => {
+  it('accepts a consumer with an empty or a positive cable section', () => {
+    for (const cableSectionMm2 of [null, 2.5]) {
+      const result = v.safeParse(NodeSchema, consumerNode({ cableSectionMm2 }))
+      expect(result.success).toBe(true)
+      expect(result.output.cableSectionMm2).toBe(cableSectionMm2)
+    }
   })
 
-  it('refuses a quantity below 1 (FR-025)', () => {
-    expect(v.safeParse(NodeSchema, consumerNode({ quantity: 0 })).success).toBe(false)
+  it('keeps the load type and the zone as whole copies of their rows', () => {
+    const result = v.safeParse(NodeSchema, consumerNode())
+    expect(result.success).toBe(true)
+    expect(result.output.loadType).toEqual(loadTypeRow())
+    expect(result.output.zone).toEqual(zoneRow())
   })
 
-  it('accepts an optional note on any kind (FR-012)', () => {
-    expect(v.safeParse(NodeSchema, { ...panel, note: 'другий поверх' }).success).toBe(true)
-    expect(v.safeParse(NodeSchema, consumerNode({ note: 'узгодити з замовником' })).success).toBe(
-      true,
+  it('refuses a consumer whose load type or zone is missing, or a copy without its id', () => {
+    for (const key of ['loadType', 'zone']) {
+      const without = consumerNode()
+      delete without[key]
+      expect(v.safeParse(NodeSchema, without).success, `${key} missing`).toBe(false)
+    }
+    expect(
+      v.safeParse(NodeSchema, consumerNode({ loadType: loadTypeRow({ id: '' }) })).success,
+    ).toBe(false)
+    expect(v.safeParse(NodeSchema, consumerNode({ zone: zoneRow({ id: '' }) })).success).toBe(false)
+  })
+
+  it('refuses a copied value its row’s column would refuse', () => {
+    for (const over of [
+      { loadType: loadTypeRow({ powerFactor: '0.95' }) },
+      { loadType: loadTypeRow({ name: '' }) },
+      { zone: zoneRow({ separateRcd: 'ні' }) },
+      { zone: zoneRow({ leakageMa: 'abc' }) },
+    ]) {
+      expect(v.safeParse(NodeSchema, consumerNode(over)).success, JSON.stringify(over)).toBe(false)
+    }
+  })
+
+  it('refuses a consumer without the cableSectionMm2 key, because empty is null and never absent', () => {
+    const { cableSectionMm2, ...without } = consumerNode()
+    expect(cableSectionMm2).toBeNull()
+    expect(v.safeParse(NodeSchema, without).success).toBe(false)
+  })
+
+  it('refuses a cable section of 0, below 0, or written as text', () => {
+    for (const cableSectionMm2 of [0, -1, '2.5']) {
+      expect(v.safeParse(NodeSchema, consumerNode({ cableSectionMm2 })).success).toBe(false)
+    }
+  })
+
+  it('drops note, typeId, typeName, quantity and bare ids from a consumer (SC-006)', () => {
+    const result = v.safeParse(
+      NodeSchema,
+      consumerNode({
+        note: 'узгодити',
+        typeId: 'fridge',
+        typeName: 'Холодильник',
+        quantity: 1,
+        loadTypeId: 'lt-test',
+        zoneId: 'zn-test',
+      }),
+    )
+    expect(result.success).toBe(true)
+    expect(Object.keys(result.output).sort()).toEqual(
+      ['childIds', 'id', 'kind', 'name', 'parentId', 'loadType', 'zone', 'cableSectionMm2'].sort(),
     )
   })
 })
@@ -92,10 +178,11 @@ describe('ProjectSchema', () => {
     expect(v.safeParse(ProjectSchema, project({ name: '' })).success).toBe(false)
   })
 
-  it('refuses a project without a catalogVersion (contracts/project-file.md)', () => {
-    const { catalogVersion, ...withoutCatalogVersion } = project()
-    expect(catalogVersion).toBe('2026.09.1')
-    expect(v.safeParse(ProjectSchema, withoutCatalogVersion).success).toBe(false)
+  it('accepts a project with no catalogVersion and drops one that is there (002/FR-016)', () => {
+    expect(v.safeParse(ProjectSchema, project()).success).toBe(true)
+    const result = v.safeParse(ProjectSchema, project({ catalogVersion: '2026.09.1' }))
+    expect(result.success).toBe(true)
+    expect(result.output).not.toHaveProperty('catalogVersion')
   })
 })
 
@@ -103,12 +190,13 @@ describe('formatIssuePath names the failing element (FR-036)', () => {
   it('renders an array step as [n] and an object step as .key', () => {
     const nodes = [entry]
     for (let i = 1; i <= 42; i += 1) {
-      nodes.push(consumerNode({ id: `n-${i}`, quantity: i === 42 ? '3' : 1 }))
+      const zone = i === 42 ? zoneRow({ leakageMa: 'abc' }) : zoneRow()
+      nodes.push(consumerNode({ id: `n-${i}`, zone }))
     }
     const result = v.safeParse(ProjectSchema, project({ nodes }))
     expect(result.success).toBe(false)
     const paths = result.issues.map(formatIssuePath)
-    expect(paths).toContain('nodes[42].quantity')
+    expect(paths).toEqual(['nodes[42].zone.leakageMa'])
   })
 
   it('renders a top-level field as its bare name', () => {
@@ -117,26 +205,71 @@ describe('formatIssuePath names the failing element (FR-036)', () => {
   })
 })
 
-describe('ConsumerTypeSchema', () => {
-  it('accepts every type in the shipped built-in catalog', () => {
-    for (const type of builtinCatalog.types) {
-      const result = v.safeParse(ConsumerTypeSchema, type)
-      if (!result.success) {
-        throw new Error(
-          `${type.id}: ${result.issues.map((i) => `${formatIssuePath(i)} ${i.message}`).join('; ')}`,
-        )
-      }
-      expect(result.success).toBe(true)
-    }
+const referenceTables = (over = {}) => ({
+  schemaVersion: 1,
+  loadTypes: [loadTypeRow()],
+  zones: [zoneRow()],
+  ...over,
+})
+
+describe('ReferenceTablesSchema — the rows of both tables (002/FR-005, 002/FR-006)', () => {
+  it('accepts rows whose every cell but id and name is empty', () => {
+    expect(v.safeParse(LoadTypeSchema, loadTypeRow()).success).toBe(true)
+    expect(v.safeParse(ZoneSchema, zoneRow()).success).toBe(true)
+    expect(v.safeParse(ReferenceTablesSchema, referenceTables()).success).toBe(true)
   })
 
-  it('refuses a type whose category does not resolve in the same file (contracts/catalog.md)', () => {
-    const ids = new Set(builtinCatalog.categories.map((c) => c.id))
-    for (const type of builtinCatalog.types) expect(ids.has(type.categoryId)).toBe(true)
+  it('accepts filled rows in the source document’s value kinds', () => {
+    const hob = loadTypeRow({
+      ratedPowerKw: 7.4,
+      phases: '1ф або 2ф',
+      breakerCurve: 'C/D',
+      continuous: false,
+      powerFactor: 0.98,
+      demandFactor: 0.65,
+      rcdType: 'A',
+    })
+    const kitchen = zoneRow({
+      rcdRequired: true,
+      leakageMa: 30,
+      minIp: 'IP20 / IP44',
+      separateRcd: false,
+      purpose: 'Робочі поверхні кухонь, зона біля кухонної мийки',
+    })
+    expect(v.safeParse(LoadTypeSchema, hob).success).toBe(true)
+    expect(v.safeParse(ZoneSchema, kitchen).success).toBe(true)
   })
 
-  it('refuses a blank English name, which the search index needs (FR-021)', () => {
-    const type = builtinCatalog.types[0]
-    expect(v.safeParse(ConsumerTypeSchema, { ...type, nameEn: '' }).success).toBe(false)
+  it('refuses a row with a key missing, because empty is null and never absent', () => {
+    const { phases, ...withoutPhases } = loadTypeRow()
+    expect(phases).toBeNull()
+    expect(v.safeParse(LoadTypeSchema, withoutPhases).success).toBe(false)
+  })
+
+  it('refuses an empty name and a name longer than 120 characters', () => {
+    expect(v.safeParse(LoadTypeSchema, loadTypeRow({ name: '' })).success).toBe(false)
+    expect(v.safeParse(ZoneSchema, zoneRow({ name: 'я'.repeat(121) })).success).toBe(false)
+  })
+
+  it('refuses text in a number column and «так» in a yes/no column', () => {
+    expect(v.safeParse(LoadTypeSchema, loadTypeRow({ powerFactor: '0.95' })).success).toBe(false)
+    expect(v.safeParse(LoadTypeSchema, loadTypeRow({ continuous: 'так' })).success).toBe(false)
+    expect(v.safeParse(ZoneSchema, zoneRow({ leakageMa: '30' })).success).toBe(false)
+  })
+
+  it('refuses a text cell longer than 2000 characters', () => {
+    expect(v.safeParse(ZoneSchema, zoneRow({ purpose: 'а'.repeat(2001) })).success).toBe(false)
+  })
+
+  it('refuses a file of another schemaVersion', () => {
+    expect(v.safeParse(ReferenceTablesSchema, referenceTables({ schemaVersion: 2 })).success).toBe(
+      false,
+    )
+  })
+
+  it('drops a key the schema does not name, such as the source document’s code', () => {
+    const result = v.safeParse(LoadTypeSchema, loadTypeRow({ code: 'HOB' }))
+    expect(result.success).toBe(true)
+    expect(result.output).not.toHaveProperty('code')
   })
 })

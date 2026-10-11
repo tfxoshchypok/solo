@@ -1,0 +1,442 @@
+{
+  "schemaVersion": 1,
+  "loadTypes": [
+    {
+      "id": "lt-528485c6-0f64-493c-a04c-7e84ad6dbede",
+      "name": "Освітлення загальне",
+      "ratedPowerKw": 0.3,
+      "phases": "1ф",
+      "breakerCurve": "B",
+      "continuous": false,
+      "powerFactor": 0.95,
+      "demandFactor": 0.8,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-52d7c9f1-c7bd-4d67-b487-70f757b00493",
+      "name": "Розетки житлових кімнат",
+      "ratedPowerKw": 2,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": false,
+      "powerFactor": 0.95,
+      "demandFactor": 0.3,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-aeffbbb4-f951-4c92-9152-84dbc022b03d",
+      "name": "Розетки кухні (робоча зона)",
+      "ratedPowerKw": 3.5,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": false,
+      "powerFactor": 0.95,
+      "demandFactor": 0.4,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-a9ab7d3c-9d26-4681-870a-2a4b8f6d76e0",
+      "name": "Варильна поверхня",
+      "ratedPowerKw": 7.4,
+      "phases": "1ф або 2ф",
+      "breakerCurve": "C",
+      "continuous": false,
+      "powerFactor": 0.98,
+      "demandFactor": 0.65,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-df124072-9d7b-4238-ae90-da5c26c9d5ef",
+      "name": "Духова шафа",
+      "ratedPowerKw": 3,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": false,
+      "powerFactor": 1,
+      "demandFactor": 0.7,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-7a1cd4b2-7505-4a34-82fd-cd7b4c3a77fe",
+      "name": "Мікрохвильова піч",
+      "ratedPowerKw": 1.5,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": false,
+      "powerFactor": 0.9,
+      "demandFactor": 0.5,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-db6d1fe3-3e94-4f76-af8a-54a97f651e1a",
+      "name": "Подрібнювач відходів (диспоузер)",
+      "ratedPowerKw": 0.8,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": false,
+      "powerFactor": 0.8,
+      "demandFactor": 0.2,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-e9b2667d-2da2-4515-8832-7ad3e0e40f2c",
+      "name": "Бойлер накопичувальний (ГВП)",
+      "ratedPowerKw": 2,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 1,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-e607b52b-7f77-4471-ae2d-cf6e0e1083c8",
+      "name": "Проточний водонагрівач",
+      "ratedPowerKw": 12,
+      "phases": "3ф",
+      "breakerCurve": "B",
+      "continuous": false,
+      "powerFactor": 1,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-a707801e-9e45-4d8d-a8f3-bf3bd93dcb95",
+      "name": "Пральна машина",
+      "ratedPowerKw": 2.2,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": false,
+      "powerFactor": 0.9,
+      "demandFactor": 0.6,
+      "rcdType": "F"
+    },
+    {
+      "id": "lt-0bfcd451-ba83-4d43-87d1-e568dd7f5ca3",
+      "name": "Сушильна машина",
+      "ratedPowerKw": 1.5,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": false,
+      "powerFactor": 0.9,
+      "demandFactor": 0.7,
+      "rcdType": "F"
+    },
+    {
+      "id": "lt-20da5220-877a-4ba5-9b1e-d33296cdc15d",
+      "name": "Посудомийна машина",
+      "ratedPowerKw": 2,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": false,
+      "powerFactor": 0.95,
+      "demandFactor": 0.6,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-9fe6b1aa-5a20-4d04-8b6c-cda1da596b55",
+      "name": "Кондиціонер / Спліт-система",
+      "ratedPowerKw": 1,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 0.85,
+      "demandFactor": 0.7,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-381a8c76-e9ad-44c9-ac22-67320cbef658",
+      "name": "Вентиляція з рекуперацією",
+      "ratedPowerKw": 1.5,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 0.9,
+      "demandFactor": 0.8,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-ab041523-c9cf-4c64-a983-5935c72569c8",
+      "name": "Тепла підлога електрична",
+      "ratedPowerKw": 0.8,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 1,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-e5ccda2e-fcca-46fa-afa3-17b3c80c1d4a",
+      "name": "Рушникосушка",
+      "ratedPowerKw": 0.3,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 1,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-51c5cbba-227f-4028-8de7-3c3f69245f87",
+      "name": "Електрокотел опалення",
+      "ratedPowerKw": 9,
+      "phases": "3ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 1,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-df76f4ca-0759-4450-9ae1-49255727f4f3",
+      "name": "Тепловий насос (компресор)",
+      "ratedPowerKw": 3,
+      "phases": "1ф і 3ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 0.9,
+      "demandFactor": 1,
+      "rcdType": "F"
+    },
+    {
+      "id": "lt-58e0f525-070e-420a-820f-5b43ede25eb4",
+      "name": "Тепловий насос (ТЕН догріву)",
+      "ratedPowerKw": 6,
+      "phases": "3ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 1,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-b5ba732e-4e88-49f4-bb8d-126e3867a9d3",
+      "name": "Газовий котел",
+      "ratedPowerKw": 0.2,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 0.85,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-f0be2b89-8358-46ec-82c3-42c47a0a32fa",
+      "name": "Зовнішні циркуляційні насоси",
+      "ratedPowerKw": 0.25,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 0.8,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-08de994f-4f42-4fc8-9362-142faa86acb7",
+      "name": "Насос свердловини / поливу",
+      "ratedPowerKw": 1.1,
+      "phases": "1ф",
+      "breakerCurve": "C/D",
+      "continuous": false,
+      "powerFactor": 0.8,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-51a43b00-1b39-4800-a25e-6ec42249089e",
+      "name": "Септик / біостанція / дренаж",
+      "ratedPowerKw": 0.8,
+      "phases": "1ф",
+      "breakerCurve": "C/D",
+      "continuous": true,
+      "powerFactor": 0.8,
+      "demandFactor": 0.8,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-7a20cadd-cca7-404d-b781-4c955af6d47a",
+      "name": "Сніготанення / антиоблід покрівлі",
+      "ratedPowerKw": 3,
+      "phases": "1ф і 3ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 1,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-c5196cef-bf29-470d-8f8e-7e940a0e1e10",
+      "name": "Зарядна станція EV",
+      "ratedPowerKw": 7.4,
+      "phases": "1ф і 3ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 1,
+      "demandFactor": 1,
+      "rcdType": "B"
+    },
+    {
+      "id": "lt-4eb2e61a-a332-4ba9-af58-1ca6ad6f0f48",
+      "name": "Сауна (електрокам'янка)",
+      "ratedPowerKw": 6,
+      "phases": "3ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 1,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-aa6ea5a4-190a-4c44-a631-e86fe104b211",
+      "name": "Автоматика воріт / ролетів",
+      "ratedPowerKw": 0.4,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": false,
+      "powerFactor": 0.8,
+      "demandFactor": 0.3,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-5e15555f-2b55-4da6-be54-4821d8934409",
+      "name": "Вуличні розетки загальні",
+      "ratedPowerKw": 2.5,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": false,
+      "powerFactor": 0.95,
+      "demandFactor": 0.5,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-f6bcbf84-5aee-43e5-b7b7-d75a27798849",
+      "name": "Холодильник / Морозильник",
+      "ratedPowerKw": 0.25,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 0.8,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-3dc0a47b-2b7b-4ab4-bcb8-e4b56d265840",
+      "name": "Витяжка вентиляційна",
+      "ratedPowerKw": 0.2,
+      "phases": "1ф",
+      "breakerCurve": "C",
+      "continuous": false,
+      "powerFactor": 0.9,
+      "demandFactor": 0.5,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-1c37bf3e-6b74-4c9c-aee6-42cd3ccc7290",
+      "name": "Інвертор / Зарядка АКБ (UPS)",
+      "ratedPowerKw": 5,
+      "phases": "1ф і 3ф",
+      "breakerCurve": "C",
+      "continuous": true,
+      "powerFactor": 0.95,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-4d284e54-8337-4eac-ac18-eb3532e15f6c",
+      "name": "Серверна / Роутер / Відео (ДБЖ)",
+      "ratedPowerKw": 0.3,
+      "phases": "1ф",
+      "breakerCurve": "B",
+      "continuous": true,
+      "powerFactor": 0.85,
+      "demandFactor": 1,
+      "rcdType": "A"
+    },
+    {
+      "id": "lt-2193b9f2-5f01-4705-a3b5-bae6c300a953",
+      "name": "Система захисту від протікання",
+      "ratedPowerKw": 0.05,
+      "phases": "1ф",
+      "breakerCurve": "B",
+      "continuous": true,
+      "powerFactor": 0.9,
+      "demandFactor": 1,
+      "rcdType": "A"
+    }
+  ],
+  "zones": [
+    {
+      "id": "zn-345c8680-d195-4060-89a1-e09e5713e326",
+      "name": "Суха житлова",
+      "rcdRequired": true,
+      "leakageMa": 30,
+      "minIp": "IP20",
+      "separateRcd": false,
+      "purpose": "Спальні, вітальні, дитячі, кабінети, передпокої"
+    },
+    {
+      "id": "zn-d8d047e2-47bf-482c-8209-a06977a42f99",
+      "name": "Волога (санвузли)",
+      "rcdRequired": true,
+      "leakageMa": 10,
+      "minIp": "IP44",
+      "separateRcd": true,
+      "purpose": "Ванні кімнати, душові, санвузли (підвищена чутливість)"
+    },
+    {
+      "id": "zn-85f1eb7d-a975-462a-b17d-e52d023d9015",
+      "name": "Кухня",
+      "rcdRequired": true,
+      "leakageMa": 30,
+      "minIp": "IP20 / IP44",
+      "separateRcd": false,
+      "purpose": "Робочі поверхні кухонь, зона біля кухонної мийки"
+    },
+    {
+      "id": "zn-d8e55800-d08e-467a-a9be-f175e35367a2",
+      "name": "Вулиця / відкритий ґрунт",
+      "rcdRequired": true,
+      "leakageMa": 30,
+      "minIp": "IP44 / IP65",
+      "separateRcd": true,
+      "purpose": "Фасади, тераси, ворота, полив (високий фоновий витік)"
+    },
+    {
+      "id": "zn-d1cebda8-8f55-4a93-8614-3f2b617ca581",
+      "name": "Вулиця під навісом / гараж",
+      "rcdRequired": true,
+      "leakageMa": 30,
+      "minIp": "IP44",
+      "separateRcd": true,
+      "purpose": "Автонавіси, холодні гаражі, криті господарські блоки"
+    },
+    {
+      "id": "zn-8fc0c8da-1959-47e9-b34c-ca911858ed99",
+      "name": "Технічне приміщення",
+      "rcdRequired": true,
+      "leakageMa": 30,
+      "minIp": "IP44",
+      "separateRcd": false,
+      "purpose": "Котельні, щитові, пральні зони"
+    },
+    {
+      "id": "zn-807fa84f-633b-4a47-9a91-6a3bc5be3fe7",
+      "name": "Критична безперервна лінія",
+      "rcdRequired": false,
+      "leakageMa": null,
+      "minIp": "IP44",
+      "separateRcd": true,
+      "purpose": "Дренаж проти затоплення, септики, аерація (без розеток)"
+    },
+    {
+      "id": "zn-e637f5e1-31e6-42e5-b864-3441ed78f093",
+      "name": "Лінія гарантованого живлення",
+      "rcdRequired": true,
+      "leakageMa": 30,
+      "minIp": "IP20",
+      "separateRcd": true,
+      "purpose": "Мережа після інвертора / ДБЖ (окремий нейтральний контур)"
+    }
+  ]
+}

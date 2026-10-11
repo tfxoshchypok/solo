@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { canAccept, childrenKindAfter } from '@/modules/tree/engine/homogeneity.js'
 import { addNode, moveNode, RuleError } from '@/modules/tree/engine/treeOps.js'
-import { tree, consumer } from '../../fixtures/tree.js'
+import { tree, consumer, loadTypeRow, zoneRow } from '../../fixtures/tree.js'
 import fc from 'fast-check'
 
 const emptyPanel = () =>
@@ -40,7 +40,7 @@ const panelHoldingConsumers = () =>
         id: 'p1',
         kind: 'panel',
         name: 'Щиток',
-        children: [consumer('c1', 'lamp'), consumer('c2', 'socket'), consumer('c3', 'socket')],
+        children: [consumer('c1'), consumer('c2'), consumer('c3')],
       },
     ],
   })
@@ -168,8 +168,8 @@ describe('property: no panel ever holds both child kinds (R10)', () => {
                   parentId,
                   kind: step.op === 'addPanel' ? 'panel' : 'consumer',
                   name: 'x',
-                  typeId: step.op === 'addConsumer' ? 'lamp' : undefined,
-                  typeName: step.op === 'addConsumer' ? 'Світильник' : undefined,
+                  loadType: step.op === 'addConsumer' ? loadTypeRow() : undefined,
+                  zone: step.op === 'addConsumer' ? zoneRow() : undefined,
                 }).nodes
               }
             } catch (error) {

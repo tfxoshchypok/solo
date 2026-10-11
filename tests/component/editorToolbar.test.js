@@ -11,6 +11,7 @@ import { useTreeStore } from '@/modules/tree/stores/tree.js'
 import { useProjectStore } from '@/stores/project.js'
 import { ProjectFileService } from '@/services/ProjectFileService.js'
 import { setFs, MemoryFs } from '@/services/fs/index.js'
+import { loadTypeRow, zoneRow } from '../fixtures/tree.js'
 
 /** The view calls `useMessage` and `useDialog`, which need their providers above them. */
 const Harness = defineComponent({
@@ -64,8 +65,8 @@ describe('where a new child lands', () => {
       parentId: kitchen,
       kind: 'consumer',
       name: 'Холодильник',
-      typeId: 'fridge',
-      typeName: 'Холодильник',
+      loadType: loadTypeRow(),
+      zone: zoneRow(),
     })
     tree.select(fridge)
 
@@ -81,8 +82,8 @@ describe('where a new child lands', () => {
       parentId: kitchen,
       kind: 'consumer',
       name: 'Холодильник',
-      typeId: 'fridge',
-      typeName: 'Холодильник',
+      loadType: loadTypeRow(),
+      zone: zoneRow(),
     })
     tree.select(fridge)
 
@@ -106,8 +107,8 @@ describe('a node that was just added is visible', () => {
       parentId: kitchen,
       kind: 'consumer',
       name: 'Холодильник',
-      typeId: 'fridge',
-      typeName: 'Холодильник',
+      loadType: loadTypeRow(),
+      zone: zoneRow(),
     })
 
     expect(tree.expandedIds).toContain(kitchen)

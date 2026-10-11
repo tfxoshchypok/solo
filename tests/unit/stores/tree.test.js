@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useTreeStore } from '@/modules/tree/stores/tree.js'
+import { useReferenceTablesStore } from '@/modules/reference/stores/referenceTables.js'
+import { ReferenceTablesFileService } from '@/services/ReferenceTablesFileService.js'
+import { setFs, MemoryFs } from '@/services/fs/index.js'
 import { renameNode, RuleError } from '@/modules/tree/engine/treeOps.js'
 import { tree, consumer } from '../../fixtures/tree.js'
 
@@ -13,7 +16,7 @@ const loadedProject = () =>
     id: 'root',
     kind: 'entry',
     name: 'Ввід',
-    children: [{ id: 'p1', kind: 'panel', name: 'Щиток', children: [consumer('c1', 'lamp')] }],
+    children: [{ id: 'p1', kind: 'panel', name: 'Щиток', children: [consumer('c1')] }],
   })
 
 describe('tree store undo history after a project load (FR-011)', () => {
@@ -173,7 +176,7 @@ describe('tree store applies the structural fix as one undo step (FR-016)', () =
           id: 'p1',
           kind: 'panel',
           name: 'Кухня',
-          children: [consumer('c1', 'lamp'), consumer('c2', 'socket')],
+          children: [consumer('c1'), consumer('c2')],
         },
       ],
     })
@@ -221,15 +224,105 @@ describe('tree store applies the structural fix as one undo step (FR-016)', () =
   })
 })
 
-describe('tree store carries the quantity through (FR-025)', () => {
-  it('setQuantity commits one step and undo takes it back', () => {
+describe('tree store edits the consumer fields, one undo step each (002/FR-014, 002/FR-021)', () => {
+  // The reference store holds the shipped tables from the moment it exists, so no load() is needed.
+  const loadTypeNamed = (name) =>
+    useReferenceTablesStore().tables.loadTypes.find((r) => r.name === name)
+  const zoneNamed = (name) => useReferenceTablesStore().tables.zones.find((r) => r.name === name)
+
+  const kitchenWith = (fields) =>
+    tree({
+      id: 'root',
+      kind: 'entry',
+      name: 'Ввід',
+      children: [{ id: 'p1', kind: 'panel', name: 'Кухня', children: [consumer('c1', fields)] }],
+    })
+
+  it('setLoadType copies the row it finds and renames a consumer still named after its load type; one undo restores both', () => {
+    const oven = loadTypeNamed('Духова шафа')
+    const microwave = loadTypeNamed('Мікрохвильова піч')
     const store = useTreeStore()
-    store.setTree(loadedProject())
+    store.setTree(kitchenWith({ name: 'Духова шафа', loadType: oven }))
     const before = store.history.undoStack.length
-    store.setQuantity('c1', 8)
-    expect(store.nodes.c1.quantity).toBe(8)
+
+    store.setLoadType('c1', microwave.id)
+    expect(store.nodes.c1.loadType).toEqual(microwave)
+    expect(store.nodes.c1.name).toBe('Мікрохвильова піч')
     expect(store.history.undoStack.length).toBe(before + 1)
+
     store.history.undo()
-    expect(store.nodes.c1.quantity).toBe(1)
+    expect(store.nodes.c1.loadType).toEqual(oven)
+    expect(store.nodes.c1.name).toBe('Духова шафа')
+  })
+
+  it('setZone, setCopyValue and setCableSection each commit one step that undo takes back', () => {
+    const kitchen = zoneNamed('Кухня')
+    const store = useTreeStore()
+    store.setTree(kitchenWith({}))
+    const before = store.history.undoStack.length
+
+    store.setZone('c1', kitchen.id)
+    expect(store.nodes.c1.zone).toEqual(kitchen)
+    store.setCopyValue('c1', 'zone', 'leakageMa', 10)
+    expect(store.nodes.c1.zone.leakageMa).toBe(10)
+    store.setCableSection('c1', 2.5)
+    expect(store.nodes.c1.cableSectionMm2).toBe(2.5)
+    expect(store.history.undoStack.length).toBe(before + 3)
+
+    store.history.undo()
+    expect(store.nodes.c1.cableSectionMm2).toBeNull()
+    store.history.undo()
+    expect(store.nodes.c1.zone).toEqual(kitchen)
+    store.history.undo()
+    expect(store.nodes.c1.zone.id).toBe('zn-test')
+  })
+
+  it('setCopyValue changes this consumer only, never the table row it was copied from', () => {
+    const sockets = loadTypeNamed('Розетки кухні (робоча зона)')
+    const store = useTreeStore()
+    store.setTree(
+      tree({
+        id: 'root',
+        kind: 'entry',
+        name: 'Ввід',
+        children: [
+          {
+            id: 'p1',
+            kind: 'panel',
+            name: 'Кухня',
+            children: [
+              consumer('c1', { loadType: sockets }),
+              consumer('c2', { loadType: sockets }),
+            ],
+          },
+        ],
+      }),
+    )
+
+    store.setCopyValue('c1', 'loadType', 'demandFactor', 0.6)
+    expect(store.nodes.c1.loadType.demandFactor).toBe(0.6)
+    expect(store.nodes.c2.loadType.demandFactor).toBe(sockets.demandFactor)
+    expect(loadTypeNamed('Розетки кухні (робоча зона)').demandFactor).toBe(sockets.demandFactor)
+  })
+
+  it('an edit in the reference tables changes no consumer (SC-007)', async () => {
+    setFs(new MemoryFs({ dataDir: '/memfs/data' }))
+    try {
+      const reference = useReferenceTablesStore()
+      const sockets = loadTypeNamed('Розетки кухні (робоча зона)')
+      const store = useTreeStore()
+      store.setTree(kitchenWith({ name: sockets.name, loadType: sockets }))
+      const copied = store.nodes.c1
+
+      await reference.updateCell('loadTypes', sockets.id, 'demandFactor', '0,5')
+      await reference.updateCell('loadTypes', sockets.id, 'name', 'Розетки кухні')
+      expect(loadTypeNamed('Розетки кухні').demandFactor).toBe(0.5)
+
+      expect(store.nodes.c1).toBe(copied)
+      expect(store.nodes.c1.loadType).toEqual(sockets)
+    } finally {
+      await ReferenceTablesFileService.flush().catch(() => {})
+      setFs(null)
+    }
   })
 })

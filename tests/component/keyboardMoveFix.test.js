@@ -29,7 +29,7 @@ const sample = () =>
     kind: 'entry',
     name: 'Ввід',
     children: [
-      { id: 'kitchen', kind: 'panel', name: 'Кухня', children: [consumer('lamp', 'lamp')] },
+      { id: 'kitchen', kind: 'panel', name: 'Кухня', children: [consumer('lamp')] },
       { id: 'spare', kind: 'panel', name: 'Запас' },
     ],
   })

@@ -6,7 +6,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import StructuralFixDialog from '@/modules/tree/components/StructuralFixDialog.vue'
 import { useTreeStore } from '@/modules/tree/stores/tree.js'
-import { tree, consumer } from '../fixtures/tree.js'
+import { tree, consumer, loadTypeRow, zoneRow } from '../fixtures/tree.js'
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -24,7 +24,7 @@ const sample = () =>
     kind: 'entry',
     name: 'Ввід',
     children: [
-      { id: 'kitchen', kind: 'panel', name: 'Кухня', children: [consumer('lamp', 'lamp')] },
+      { id: 'kitchen', kind: 'panel', name: 'Кухня', children: [consumer('lamp')] },
       {
         id: 'floor',
         kind: 'panel',
@@ -88,7 +88,7 @@ describe('StructuralFixDialog resolves a move, not only an add (SC-002)', () => 
         message: 'Поверх уже містить щитки.',
         fix: { kind: 'placeUnderChildPanel', parentId: 'floor', candidatePanelIds: ['bedroom'] },
       },
-      { kind: 'consumer', name: 'Торшер', typeId: 'lamp', typeName: 'Світильник' },
+      { kind: 'consumer', name: 'Торшер', loadType: loadTypeRow(), zone: zoneRow() },
     )
     const countBefore = Object.keys(store.nodes).length
 

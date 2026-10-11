@@ -22,8 +22,8 @@ const props = defineProps({
   /** The `RuleError` that came back from the store, or null when there is nothing to resolve. */
   error: { type: Object, default: null },
   /**
-   * What the user was trying to do. An add carries the node to create —
-   * `{ kind, name, typeId, typeName }`. A move carries the node that already exists —
+   * What the user was trying to do. An add carries the node to create, with the two rows it will
+   * copy — `{ kind, name, loadType, zone }`. A move carries the node that already exists —
    * `{ op: 'move', nodeId, parentId }`. Both refusals offer the same two fixes (SC-002).
    */
   pending: { type: Object, default: null },

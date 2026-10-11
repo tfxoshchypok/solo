@@ -6,6 +6,7 @@
 // explicit save or an explicit "don't save" is what the user actually means when closing.
 import { app, events } from '@neutralinojs/lib'
 import { ProjectFileService } from './ProjectFileService.js'
+import { ReferenceTablesFileService } from './ReferenceTablesFileService.js'
 import { isNeutralinoRuntime } from './fs/index.js'
 
 /** How long the sidecar gets before the window is allowed to go regardless. */
@@ -96,7 +97,19 @@ export function createCloseHandler({
   }
 }
 
-/** Set by the editor once it is on screen: the prompt needs a mounted dialog provider. */
+/**
+ * Every write that may still be in flight when the window closes: the project's debounced autosave
+ * sidecar, and the reference tables file, which is written after every accepted edit (research R4).
+ * @returns {Promise<unknown>}
+ */
+export function flushPendingWrites() {
+  return Promise.all([ProjectFileService.flushAutosave(), ReferenceTablesFileService.flush()])
+}
+
+/**
+ * Set by the app shell once it is on screen: the prompt needs a mounted dialog provider, and the shell
+ * stays mounted whichever section is open, so closing from «Довідники» still asks (002/FR-008).
+ */
 let exitDecision = null
 
 /**
@@ -121,7 +134,7 @@ export function installCloseGuard() {
 
   const handler = createCloseHandler({
     beforeExit: () => (exitDecision ? exitDecision() : true),
-    flush: () => ProjectFileService.flushAutosave(),
+    flush: flushPendingWrites,
     exit: () => app.exit(),
   })
   events.on('windowClose', handler)

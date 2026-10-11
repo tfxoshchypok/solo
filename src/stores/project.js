@@ -9,7 +9,6 @@ import { basename, projectFileName, PROJECT_EXTENSION } from '@/services/PathSer
 import { getFs } from '@/services/fs/index.js'
 import { ProjectFileService, denormalize, normalize } from '@/services/ProjectFileService.js'
 import { useTreeStore } from '@/modules/tree/stores/tree.js'
-import { useCatalogStore } from '@/modules/tree/stores/catalog.js'
 
 const DEFAULT_NAME = 'Новий проект'
 
@@ -18,14 +17,11 @@ const FILE_FILTERS = [{ name: 'Проект eltree', extensions: ['eltree.json',
 
 export const useProjectStore = defineStore('project', () => {
   const tree = useTreeStore()
-  const catalog = useCatalogStore()
 
   /** null until the project has been saved once — a new project has no file yet. */
   const path = ref(null)
   const name = ref(DEFAULT_NAME)
   const isDirty = ref(false)
-  /** The catalog version this project was authored against (contracts/project-file.md). */
-  const catalogVersion = ref(null)
   /** Set once, on the first save, and carried through every later one. */
   const createdAt = ref(null)
   /** `{ sidecarPath, modifiedAt }` when an autosave is newer than the file (FR-031). */
@@ -56,7 +52,6 @@ export const useProjectStore = defineStore('project', () => {
       { rootId: tree.rootId, nodes: tree.nodes },
       {
         name: name.value,
-        catalogVersion: catalogVersion.value ?? catalog.catalogVersion,
         createdAt: createdAt.value ?? undefined,
       },
     )
@@ -84,17 +79,16 @@ export const useProjectStore = defineStore('project', () => {
     recovery.value = null
   }
 
-  function open({ path: filePath, name: projectName, catalogVersion: version, createdAt: born }) {
+  function open({ path: filePath, name: projectName, createdAt: born }) {
     path.value = filePath ?? null
     name.value = projectName ?? DEFAULT_NAME
-    catalogVersion.value = version ?? null
     createdAt.value = born ?? null
     isDirty.value = false
     recovery.value = null
   }
 
   function reset() {
-    open({ path: null, name: DEFAULT_NAME, catalogVersion: null, createdAt: null })
+    open({ path: null, name: DEFAULT_NAME, createdAt: null })
   }
 
   /** An empty project: one entry node and no file behind it (FR-002). */
@@ -126,7 +120,6 @@ export const useProjectStore = defineStore('project', () => {
     open({
       path: filePath,
       name: project.name,
-      catalogVersion: project.catalogVersion,
       createdAt: project.createdAt,
     })
   }
@@ -141,7 +134,6 @@ export const useProjectStore = defineStore('project', () => {
     open({
       path: filePath ?? null,
       name: project.name,
-      catalogVersion: project.catalogVersion,
       createdAt: project.createdAt,
     })
     isDirty.value = true
@@ -207,7 +199,6 @@ export const useProjectStore = defineStore('project', () => {
     path,
     name,
     isDirty,
-    catalogVersion,
     createdAt,
     recovery,
     fileName,

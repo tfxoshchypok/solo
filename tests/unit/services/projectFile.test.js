@@ -1,21 +1,30 @@
 // The file layer: a round trip has to reproduce the tree exactly, and a broken file has to be
-// refused whole with the failing element named (FR-033, FR-035, FR-036, SC-005).
+// refused whole with the failing element named (FR-035, FR-036, SC-005).
 //
 // Everything here runs over `MemoryFs`, so no test opens a dialog or touches a real path.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setFs, MemoryFs } from '@/services/fs/index.js'
+import { LoadError } from '@/services/LoadError.js'
 import { SCHEMA_VERSION } from '@/schemas/index.js'
 import {
   AUTOSAVE_DELAY_MS,
-  LoadError,
   ProjectFileService,
   denormalize,
   normalize,
 } from '@/services/ProjectFileService.js'
-import { tree, consumer } from '../../fixtures/tree.js'
+import builtin from '@/data/referenceTables.builtin.json'
+import { tree, consumer, loadTypeRow, zoneRow } from '../../fixtures/tree.js'
 
 const PATH = '/home/user/квартира.eltree.json'
-const META = { name: 'Квартира на Лесі Українки', catalogVersion: '2026.09.1' }
+const META = { name: 'Квартира на Лесі Українки' }
+
+const fridge = loadTypeRow({
+  id: 'lt-fridge',
+  name: 'Холодильник',
+  ratedPowerKw: 0.25,
+  continuous: true,
+})
+const kitchen = zoneRow({ id: 'zn-kitchen', name: 'Кухня', rcdRequired: true, leakageMa: 30 })
 
 /** Entry → one panel → one consumer: the smallest tree that exercises all three kinds. */
 function sample() {
@@ -30,10 +39,11 @@ function sample() {
         name: 'Кухня',
         note: 'щиток у коридорі',
         children: [
-          consumer('fridge-node', 'fridge', {
+          consumer('fridge-node', {
             name: 'Холодильник',
-            typeName: 'Холодильник',
-            quantity: 2,
+            loadType: fridge,
+            zone: kitchen,
+            cableSectionMm2: 2.5,
           }),
         ],
       },
@@ -84,8 +94,83 @@ async function writeProject(path = PATH, mutate = (project) => project) {
   return project
 }
 
-describe('a round trip reproduces the tree (FR-033, FR-035, SC-005)', () => {
-  it('returns the same nodes, names, notes and quantities it was given', async () => {
+// The keys of a consumer in the file, and no more (002/FR-016, SC-006).
+const CONSUMER_KEYS = [
+  'cableSectionMm2',
+  'childIds',
+  'id',
+  'kind',
+  'loadType',
+  'name',
+  'parentId',
+  'zone',
+]
+
+/** Three consumers: a cable section, an empty one with a hand-edited copy, a row no table holds. */
+function threeConsumers() {
+  return tree({
+    id: 'root',
+    kind: 'entry',
+    name: 'Ввід',
+    children: [
+      {
+        id: 'kitchen',
+        kind: 'panel',
+        name: 'Кухня',
+        children: [
+          consumer('c-fridge', {
+            name: 'Холодильник',
+            loadType: fridge,
+            zone: kitchen,
+            cableSectionMm2: 2.5,
+          }),
+          consumer('c-oven', {
+            name: 'Духова шафа',
+            loadType: loadTypeRow({
+              id: 'lt-oven',
+              name: 'Духова шафа',
+              ratedPowerKw: 3,
+              demandFactor: 0.95,
+            }),
+            zone: kitchen,
+          }),
+          consumer('c-gone', {
+            name: 'Інфрачервоний обігрівач',
+            loadType: loadTypeRow({
+              id: 'lt-from-another-installation',
+              name: 'Інфрачервоний обігрівач',
+            }),
+            zone: zoneRow({ id: 'zn-terrace', name: 'Тераса', leakageMa: null, minIp: 'IP44' }),
+          }),
+        ],
+      },
+    ],
+  })
+}
+
+describe('a round trip reproduces the tree (FR-035, SC-005)', () => {
+  it('reproduces three consumers exactly, copies, empty cells and an empty cable section included (002/FR-016, 002/FR-019)', async () => {
+    const before = threeConsumers()
+
+    await ProjectFileService.save(denormalize(before, META), PATH)
+    const { project } = await ProjectFileService.load(PATH)
+
+    expect(normalize(project).nodes).toEqual(before.nodes)
+    const written = JSON.parse(await fs.readText(PATH))
+    const consumers = written.nodes.filter((node) => node.kind === 'consumer')
+    expect(consumers).toHaveLength(3)
+    for (const node of consumers) {
+      expect(Object.keys(node).sort(), node.id).toEqual(CONSUMER_KEYS)
+    }
+    const oven = consumers.find((node) => node.id === 'c-oven')
+    expect(oven).toHaveProperty('cableSectionMm2', null)
+    expect(oven.loadType.demandFactor).toBe(0.95)
+    const gone = consumers.find((node) => node.id === 'c-gone')
+    expect(gone.zone).toHaveProperty('leakageMa', null)
+    expect(gone.loadType.id).toBe('lt-from-another-installation')
+  })
+
+  it('returns the same nodes, names, notes and consumer fields it was given (002/FR-019)', async () => {
     const before = sample()
 
     await ProjectFileService.save(denormalize(before, META), PATH)
@@ -94,7 +179,7 @@ describe('a round trip reproduces the tree (FR-033, FR-035, SC-005)', () => {
 
     expect(after.rootId).toBe(before.rootId)
     expect(after.nodes).toEqual(before.nodes)
-    expect(after.nodes['fridge-node'].quantity).toBe(2)
+    expect(after.nodes['fridge-node'].cableSectionMm2).toBe(2.5)
     expect(after.nodes.kitchen.note).toBe('щиток у коридорі')
   })
 
@@ -104,7 +189,7 @@ describe('a round trip reproduces the tree (FR-033, FR-035, SC-005)', () => {
     expect(Array.isArray(file.nodes)).toBe(true)
     expect(file.nodes.map((node) => node.id)).toEqual(['root', 'kitchen', 'fridge-node'])
     expect(file.schemaVersion).toBe(SCHEMA_VERSION)
-    expect(file.catalogVersion).toBe(META.catalogVersion)
+    expect(file).not.toHaveProperty('catalogVersion')
   })
 
   it('writes through a .tmp and moves it onto the target, so a crash cannot truncate it (FR-031)', async () => {
@@ -135,16 +220,16 @@ describe('load refuses a broken file whole and names the element (FR-036)', () =
     await expect(ProjectFileService.load(PATH)).rejects.toBeInstanceOf(LoadError)
   })
 
-  it('names the failing field the way FR-036 asks: nodes[2].quantity', async () => {
+  it('names the failing field the way FR-036 asks: nodes[2].cableSectionMm2', async () => {
     await writeProject(PATH, (project) => {
-      project.nodes[2].quantity = '2'
+      project.nodes[2].cableSectionMm2 = '2.5'
       return project
     })
 
     const error = await ProjectFileService.load(PATH).catch((e) => e)
     expect(error).toBeInstanceOf(LoadError)
-    expect(error.path).toBe('nodes[2].quantity')
-    expect(error.message).toContain('nodes[2].quantity')
+    expect(error.path).toBe('nodes[2].cableSectionMm2')
+    expect(error.message).toContain('nodes[2].cableSectionMm2')
     expect(error.received).toBeTruthy()
   })
 
@@ -157,14 +242,26 @@ describe('load refuses a broken file whole and names the element (FR-036)', () =
     expect(error.received).toBe(99)
   })
 
-  it('refuses a consumer with no typeName, which an older writer could have produced', async () => {
+  it('refuses a consumer with no zone, which the zone being required forbids (002/FR-010)', async () => {
     await writeProject(PATH, (project) => {
-      delete project.nodes[2].typeName
+      delete project.nodes[2].zone
       return project
     })
 
     const error = await ProjectFileService.load(PATH).catch((e) => e)
-    expect(error.path).toBe('nodes[2].typeName')
+    expect(error.path).toBe('nodes[2].zone')
+  })
+
+  it('refuses a copied value its column would refuse, naming it (002/FR-010)', async () => {
+    await writeProject(PATH, (project) => {
+      // A new copy, not an assignment into it: the copy is the module's shared `fridge` row.
+      project.nodes[2].loadType = { ...project.nodes[2].loadType, powerFactor: '0.95' }
+      return project
+    })
+
+    const error = await ProjectFileService.load(PATH).catch((e) => e)
+    expect(error).toBeInstanceOf(LoadError)
+    expect(error.path).toBe('nodes[2].loadType.powerFactor')
   })
 })
 
@@ -249,14 +346,26 @@ describe('structural validation beyond the schema (contracts/project-file.md)', 
     expect(error).toBeInstanceOf(LoadError)
   })
 
-  it('accepts a typeId the current catalog no longer ships — that is not a failure (FR-034)', async () => {
+  it('opens copies of rows the local tables lack, or hold with other values, as the file has them (002/FR-018)', async () => {
+    const localKitchen = builtin.zones.find((row) => row.name === 'Кухня')
+    const fromFile = {
+      loadType: loadTypeRow({
+        id: 'lt-from-another-installation',
+        name: 'Холодильник із морозилкою',
+        ratedPowerKw: 0.4,
+      }),
+      zone: { ...localKitchen, leakageMa: 10, minIp: 'IP44' },
+    }
     await writeProject(PATH, (project) => {
-      project.nodes[2].typeId = 'type-from-2019'
+      Object.assign(project.nodes[2], fromFile)
       return project
     })
 
     const { project } = await ProjectFileService.load(PATH)
-    expect(project.nodes[2].typeName).toBe('Холодильник')
+    expect(project.nodes[2].loadType).toEqual(fromFile.loadType)
+    expect(project.nodes[2].zone).toEqual(fromFile.zone)
+    expect(project.nodes[2].zone.leakageMa).not.toBe(localKitchen.leakageMa)
+    expect(project.nodes[2].name).toBe('Холодильник')
   })
 })
 

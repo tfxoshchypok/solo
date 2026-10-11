@@ -10,7 +10,10 @@ import {
   reorderSibling,
   renameNode,
   setNote,
-  setQuantity,
+  setConsumerLoadType,
+  setConsumerZone,
+  setConsumerCopyValue,
+  setCableSection,
   wrapChildrenInPanel,
   descendantIds,
   depthOf,
@@ -18,7 +21,13 @@ import {
   MAX_PANEL_DEPTH,
   RuleError,
 } from '@/modules/tree/engine/treeOps.js'
-import { tree, consumer, panelChain } from '../../fixtures/tree.js'
+import { tree, consumer, panelChain, loadTypeRow, zoneRow } from '../../fixtures/tree.js'
+
+// Rows as the reference store holds them; the engine copies whatever row it is handed (002/FR-010).
+const lamp = loadTypeRow({ id: 'lt-lamp', name: 'Світильник' })
+const hall = zoneRow({ id: 'zn-hall', name: 'Коридор' })
+const fridge = loadTypeRow({ id: 'lt-fridge', name: 'Холодильник', ratedPowerKw: 0.3 })
+const kitchen = zoneRow({ id: 'zn-kitchen', name: 'Кухня', rcdRequired: true, leakageMa: 30 })
 
 const twoPanelsWithConsumers = () =>
   tree({
@@ -35,9 +44,9 @@ const twoPanelsWithConsumers = () =>
             id: 'p2',
             kind: 'panel',
             name: 'Кухня',
-            children: [consumer('c1', 'lamp'), consumer('c2', 'socket')],
+            children: [consumer('c1'), consumer('c2')],
           },
-          { id: 'p3', kind: 'panel', name: 'Спальня', children: [consumer('c3', 'lamp')] },
+          { id: 'p3', kind: 'panel', name: 'Спальня', children: [consumer('c3')] },
         ],
       },
     ],
@@ -64,16 +73,27 @@ describe('treeOps.addNode (FR-006)', () => {
     expect(nodes.root.childIds).toEqual([])
   })
 
-  it('carries typeId onto a consumer and gives it a quantity of 1 (FR-025)', () => {
+  it('builds a consumer of exactly its field list, holding copies of both rows (002/FR-010, 002/FR-012)', () => {
     const { nodes } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
     const { nodes: next, nodeId } = addNode(nodes, {
       parentId: 'root',
       kind: 'consumer',
       name: 'Холодильник',
-      typeId: 'fridge',
-      typeName: 'Холодильник',
+      loadType: fridge,
+      zone: kitchen,
     })
-    expect(next[nodeId]).toMatchObject({ typeId: 'fridge', quantity: 1, childIds: [] })
+    expect(next[nodeId]).toEqual({
+      id: nodeId,
+      kind: 'consumer',
+      name: 'Холодильник',
+      parentId: 'root',
+      childIds: [],
+      loadType: fridge,
+      zone: kitchen,
+      cableSectionMm2: null,
+    })
+    expect(next[nodeId].loadType).not.toBe(fridge)
+    expect(next[nodeId].zone).not.toBe(kitchen)
   })
 
   it('builds a consumer that satisfies ConsumerNodeSchema, not one the schema rejects', () => {
@@ -82,31 +102,29 @@ describe('treeOps.addNode (FR-006)', () => {
       parentId: 'root',
       kind: 'consumer',
       name: 'Холодильник',
-      typeId: 'fridge',
-      typeName: 'Холодильник',
+      loadType: fridge,
+      zone: kitchen,
     })
     expect(v.safeParse(ConsumerNodeSchema, next[nodeId]).success).toBe(true)
   })
 
-  it('refuses a consumer with no catalog type, naming the fix (FR-023)', () => {
+  it('refuses a consumer with no load type or no zone row, naming which (002/FR-010)', () => {
     const { nodes } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
-    let thrown
-    try {
-      addNode(nodes, { parentId: 'root', kind: 'consumer', name: 'Лампа' })
-    } catch (error) {
-      thrown = error
-    }
-    expect(thrown).toBeInstanceOf(RuleError)
-    expect(thrown.code).toBe('typeRequired')
-    expect(thrown.fix).toBeTypeOf('string')
-  })
-
-  it('refuses an empty or blank typeId the same way', () => {
-    const { nodes } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
-    for (const typeId of ['', '   ', null]) {
-      expect(() =>
-        addNode(nodes, { parentId: 'root', kind: 'consumer', name: 'Лампа', typeId }),
-      ).toThrow(RuleError)
+    const cases = [
+      [{ zone: kitchen }, 'loadTypeRequired'],
+      [{ loadType: fridge }, 'zoneRequired'],
+      [{ loadType: loadTypeRow({ id: '  ' }), zone: kitchen }, 'loadTypeRequired'],
+      [{ loadType: fridge, zone: null }, 'zoneRequired'],
+    ]
+    for (const [rows, code] of cases) {
+      let thrown
+      try {
+        addNode(nodes, { parentId: 'root', kind: 'consumer', name: 'Лампа', ...rows })
+      } catch (error) {
+        thrown = error
+      }
+      expect(thrown, JSON.stringify(rows)).toBeInstanceOf(RuleError)
+      expect(thrown.code).toBe(code)
     }
   })
 
@@ -130,33 +148,14 @@ describe('treeOps.addNode (FR-006)', () => {
       parentId: `p${MAX_PANEL_DEPTH}`,
       kind: 'consumer',
       name: 'Світильник',
-      typeId: 'lamp',
-      typeName: 'Світильник',
+      loadType: lamp,
+      zone: hall,
     })
     expect(depthOf(next, nodeId)).toBe(MAX_PANEL_DEPTH + 1)
   })
 })
 
 describe('treeOps.addNode guards the fields the schema requires', () => {
-  it('refuses a consumer without a typeName (FR-034)', () => {
-    const { nodes, rootId } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
-    expect(() =>
-      addNode(nodes, { parentId: rootId, kind: 'consumer', name: 'Лампа', typeId: 'lamp' }),
-    ).toThrow(RuleError)
-  })
-
-  it('records typeName on the node it creates (FR-034)', () => {
-    const { nodes, rootId } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
-    const { nodes: next, nodeId } = addNode(nodes, {
-      parentId: rootId,
-      kind: 'consumer',
-      name: 'Холодильник',
-      typeId: 'fridge',
-      typeName: 'Холодильник',
-    })
-    expect(next[nodeId].typeName).toBe('Холодильник')
-  })
-
   it('refuses a blank name on any kind, which ProjectSchema would reject at save time', () => {
     const { nodes, rootId } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
     expect(() => addNode(nodes, { parentId: rootId, kind: 'panel', name: '' })).toThrow(RuleError)
@@ -304,7 +303,7 @@ describe('treeOps.renameNode', () => {
 })
 
 describe('treeOps.setNote (FR-012)', () => {
-  it('attaches a note to any kind and leaves everything else alone', () => {
+  it('attaches a note to a panel and leaves everything else alone', () => {
     const { nodes } = twoPanelsWithConsumers()
     const next = setNote(nodes, 'p2', 'узгодити з замовником')
     expect(next.p2.note).toBe('узгодити з замовником')
@@ -317,6 +316,18 @@ describe('treeOps.setNote (FR-012)', () => {
     const withNote = setNote(nodes, 'p2', 'тимчасово')
     const cleared = setNote(withNote, 'p2', '   ')
     expect('note' in cleared.p2).toBe(false)
+  })
+
+  it('refuses a note on a consumer, whose field list has none (002/FR-009)', () => {
+    const { nodes } = twoPanelsWithConsumers()
+    let thrown
+    try {
+      setNote(nodes, 'c1', 'узгодити з замовником')
+    } catch (error) {
+      thrown = error
+    }
+    expect(thrown).toBeInstanceOf(RuleError)
+    expect(thrown.code).toBe('noteOnConsumer')
   })
 })
 
@@ -347,8 +358,8 @@ describe('treeOps.wrapChildrenInPanel (FR-016)', () => {
       parentId: `p${MAX_PANEL_DEPTH}`,
       kind: 'consumer',
       name: 'Лампа',
-      typeId: 'lamp',
-      typeName: 'Світильник',
+      loadType: lamp,
+      zone: hall,
     }).nodes
     expect(() => wrapChildrenInPanel(withConsumer, `p${MAX_PANEL_DEPTH}`, 'Група')).toThrow(
       RuleError,
@@ -356,22 +367,234 @@ describe('treeOps.wrapChildrenInPanel (FR-016)', () => {
   })
 })
 
-describe('treeOps.setQuantity (FR-025)', () => {
-  it('sets how many identical units the node stands for', () => {
-    const { nodes } = twoPanelsWithConsumers()
-    expect(setQuantity(nodes, 'c1', 8).c1.quantity).toBe(8)
+// The eight keys a consumer carries, and no more (002/FR-009). The load type and the zone are copies
+// of whole rows (002/FR-010).
+const CONSUMER_KEYS = [
+  'childIds',
+  'cableSectionMm2',
+  'id',
+  'kind',
+  'loadType',
+  'name',
+  'parentId',
+  'zone',
+]
+
+const oven = loadTypeRow({ id: 'lt-oven', name: 'Духова шафа', ratedPowerKw: 3, demandFactor: 0.7 })
+const microwave = loadTypeRow({
+  id: 'lt-microwave',
+  name: 'Мікрохвильова піч',
+  ratedPowerKw: 1.2,
+  demandFactor: 0.3,
+})
+
+/** Entry → panel → one consumer named after its load type, «Духова шафа». */
+const kitchenWithOven = () =>
+  tree({
+    id: 'root',
+    kind: 'entry',
+    name: 'Ввід',
+    children: [
+      {
+        id: 'p1',
+        kind: 'panel',
+        name: 'Кухня',
+        children: [consumer('oven', { name: 'Духова шафа', loadType: oven, zone: kitchen })],
+      },
+    ],
   })
 
-  it('refuses zero, a fraction and a negative — the schema requires an integer of at least 1', () => {
-    const { nodes } = twoPanelsWithConsumers()
-    for (const bad of [0, -3, 2.5]) {
-      expect(() => setQuantity(nodes, 'c1', bad)).toThrow(RuleError)
+const refusal = (fn) => {
+  try {
+    fn()
+  } catch (error) {
+    if (error instanceof RuleError) return error
+    throw error
+  }
+  return null
+}
+const refusalCode = (fn) => refusal(fn)?.code ?? null
+
+describe('treeOps.setConsumerLoadType — a fresh copy of the chosen row (002/FR-010, 002/FR-014)', () => {
+  it('copies the whole row and renames a consumer still named after its copied load type', () => {
+    const { nodes } = kitchenWithOven()
+    const next = setConsumerLoadType(nodes, 'oven', microwave)
+    expect(next.oven.loadType).toEqual(microwave)
+    expect(next.oven.loadType).not.toBe(microwave)
+    expect(next.oven.name).toBe('Мікрохвильова піч')
+  })
+
+  it('keeps a name the user typed', () => {
+    const { nodes } = kitchenWithOven()
+    const renamed = renameNode(nodes, 'oven', 'Духовка під стільницею')
+    const next = setConsumerLoadType(renamed, 'oven', microwave)
+    expect(next.oven.loadType).toEqual(microwave)
+    expect(next.oven.name).toBe('Духовка під стільницею')
+  })
+
+  it('compares the name with the copy, so the same row chosen after its rename in the table renames', () => {
+    const { nodes } = kitchenWithOven()
+    const rowNow = { ...oven, name: 'Духова шафа вбудована', demandFactor: 0.8 }
+    const next = setConsumerLoadType(nodes, 'oven', rowNow)
+    expect(next.oven.loadType).toEqual(rowNow)
+    expect(next.oven.name).toBe('Духова шафа вбудована')
+  })
+
+  it('replaces a value changed by hand when the same row is chosen again', () => {
+    const { nodes } = kitchenWithOven()
+    const edited = setConsumerCopyValue(nodes, 'oven', 'loadType', 'demandFactor', 0.95)
+    expect(edited.oven.loadType.demandFactor).toBe(0.95)
+    const next = setConsumerLoadType(edited, 'oven', oven)
+    expect(next.oven.loadType).toEqual(oven)
+  })
+
+  it('refuses no row, or a row without an id', () => {
+    const { nodes } = kitchenWithOven()
+    expect(refusalCode(() => setConsumerLoadType(nodes, 'oven', null))).toBe('loadTypeRequired')
+    expect(refusalCode(() => setConsumerLoadType(nodes, 'oven', loadTypeRow({ id: '' })))).toBe(
+      'loadTypeRequired',
+    )
+  })
+})
+
+describe('treeOps.setConsumerZone — a fresh copy of the chosen row (002/FR-010, 002/FR-014)', () => {
+  it('copies the whole row and leaves the name alone', () => {
+    const { nodes } = kitchenWithOven()
+    const bathroom = zoneRow({ id: 'zn-bath', name: 'Ванна', leakageMa: 10, minIp: 'IP44' })
+    const next = setConsumerZone(nodes, 'oven', bathroom)
+    expect(next.oven.zone).toEqual(bathroom)
+    expect(next.oven.zone).not.toBe(bathroom)
+    expect(next.oven.name).toBe('Духова шафа')
+  })
+
+  it('refuses no row', () => {
+    const { nodes } = kitchenWithOven()
+    expect(refusalCode(() => setConsumerZone(nodes, 'oven', null))).toBe('zoneRequired')
+  })
+})
+
+describe('treeOps.setConsumerCopyValue — one copied value, this consumer only (002/FR-021)', () => {
+  const twoOvens = () =>
+    tree({
+      id: 'root',
+      kind: 'entry',
+      name: 'Ввід',
+      children: [
+        {
+          id: 'p1',
+          kind: 'panel',
+          name: 'Кухня',
+          children: [
+            consumer('oven', { loadType: oven, zone: kitchen }),
+            consumer('oven2', { loadType: oven, zone: kitchen }),
+          ],
+        },
+      ],
+    })
+
+  it('sets one key of the copy and leaves every other key and the other consumer as they were', () => {
+    const { nodes } = twoOvens()
+    const next = setConsumerCopyValue(nodes, 'oven', 'loadType', 'demandFactor', 0.6)
+    expect(next.oven.loadType).toEqual({ ...oven, demandFactor: 0.6 })
+    expect(next.oven2.loadType).toEqual(oven)
+    expect(next.oven.zone).toEqual(kitchen)
+  })
+
+  it('sets a zone value of each kind, an empty cell included', () => {
+    const { nodes } = twoOvens()
+    let next = setConsumerCopyValue(nodes, 'oven', 'zone', 'minIp', 'IP44')
+    next = setConsumerCopyValue(next, 'oven', 'zone', 'rcdRequired', false)
+    next = setConsumerCopyValue(next, 'oven', 'zone', 'leakageMa', null)
+    expect(next.oven.zone).toEqual({
+      ...kitchen,
+      minIp: 'IP44',
+      rcdRequired: false,
+      leakageMa: null,
+    })
+  })
+
+  it('refuses the id and the name, which only a new choice of row changes', () => {
+    const { nodes } = twoOvens()
+    for (const part of ['loadType', 'zone']) {
+      for (const key of ['id', 'name']) {
+        expect(
+          refusalCode(() => setConsumerCopyValue(nodes, 'oven', part, key, 'інше')),
+          `${part}.${key}`,
+        ).toBe('copyKeyLocked')
+      }
     }
   })
 
-  it('refuses a quantity on a panel, which stands for nothing countable', () => {
-    const { nodes } = twoPanelsWithConsumers()
-    expect(() => setQuantity(nodes, 'p2', 2)).toThrow(RuleError)
+  it('refuses a key the row does not have', () => {
+    const { nodes } = twoOvens()
+    expect(refusalCode(() => setConsumerCopyValue(nodes, 'oven', 'loadType', 'quantity', 2))).toBe(
+      'unknownColumn',
+    )
+    expect(refusalCode(() => setConsumerCopyValue(nodes, 'oven', 'zone', 'demandFactor', 1))).toBe(
+      'unknownColumn',
+    )
+  })
+
+  it('refuses a value its column refuses, naming the column by its header (002/FR-006)', () => {
+    const { nodes } = twoOvens()
+    const cases = [
+      ['loadType', 'demandFactor', '0.6', 'Кп'],
+      ['loadType', 'ratedPowerKw', Number.NaN, 'P, кВт'],
+      ['zone', 'rcdRequired', 'так', 'ПЗВ обов'],
+    ]
+    for (const [part, key, value, header] of cases) {
+      const error = refusal(() => setConsumerCopyValue(nodes, 'oven', part, key, value))
+      expect(error?.code, `${part}.${key}`).toBe('badCopyValue')
+      expect(error.message).toContain(header)
+    }
+  })
+})
+
+describe('treeOps.setCableSection (002/FR-011)', () => {
+  it('stores a positive cross-section and clears it back to null', () => {
+    const { nodes } = kitchenWithOven()
+    const set = setCableSection(nodes, 'oven', 2.5)
+    expect(set.oven.cableSectionMm2).toBe(2.5)
+    const cleared = setCableSection(set, 'oven', null)
+    expect(cleared.oven.cableSectionMm2).toBeNull()
+    expect(cleared.oven).toHaveProperty('cableSectionMm2')
+  })
+
+  it('refuses 0, a negative number and a value that is not finite', () => {
+    const { nodes } = kitchenWithOven()
+    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(
+        refusalCode(() => setCableSection(nodes, 'oven', bad)),
+        String(bad),
+      ).toBe('badCableSection')
+    }
+  })
+})
+
+describe('the consumer setters refuse a panel and keep the consumer at its eight keys (002/FR-009)', () => {
+  it('refuses a panel in all four', () => {
+    const { nodes } = kitchenWithOven()
+    expect(refusalCode(() => setConsumerLoadType(nodes, 'p1', microwave))).toBe('notAConsumer')
+    expect(refusalCode(() => setConsumerZone(nodes, 'p1', kitchen))).toBe('notAConsumer')
+    expect(refusalCode(() => setCableSection(nodes, 'p1', 2.5))).toBe('notAConsumer')
+    expect(
+      refusalCode(() => setConsumerCopyValue(nodes, 'p1', 'loadType', 'demandFactor', 0.5)),
+    ).toBe('notAConsumer')
+  })
+
+  it('leaves the consumer at exactly its eight keys, and each copy at its row’s keys, so nothing computed is stored (002/FR-020)', () => {
+    const { nodes } = kitchenWithOven()
+    const results = [
+      setConsumerLoadType(nodes, 'oven', microwave),
+      setConsumerZone(nodes, 'oven', kitchen),
+      setCableSection(nodes, 'oven', 4),
+      setConsumerCopyValue(nodes, 'oven', 'zone', 'minIp', 'IP44'),
+    ]
+    for (const next of results) {
+      expect(Object.keys(next.oven).sort()).toEqual([...CONSUMER_KEYS].sort())
+      expect(Object.keys(next.oven.loadType).sort()).toEqual(Object.keys(loadTypeRow()).sort())
+      expect(Object.keys(next.oven.zone).sort()).toEqual(Object.keys(zoneRow()).sort())
+    }
   })
 })
 
@@ -428,8 +651,8 @@ describe('property: every returned map is frozen (FR-008, R5, R10)', () => {
                     parentId,
                     kind: 'consumer',
                     name: 'прилад',
-                    typeId: 'lamp',
-                    typeName: 'Світильник',
+                    loadType: lamp,
+                    zone: hall,
                   }).nodes
                   break
                 case 'move':

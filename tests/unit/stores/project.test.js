@@ -6,8 +6,10 @@ import { createPinia, setActivePinia } from 'pinia'
 import { setFs, MemoryFs } from '@/services/fs/index.js'
 import { useProjectStore } from '@/stores/project.js'
 import { useTreeStore } from '@/modules/tree/stores/tree.js'
-import { ProjectFileService, LoadError } from '@/services/ProjectFileService.js'
+import { ProjectFileService } from '@/services/ProjectFileService.js'
+import { LoadError } from '@/services/LoadError.js'
 import { PROJECT_EXTENSION } from '@/services/PathService.js'
+import { loadTypeRow, zoneRow } from '../../fixtures/tree.js'
 
 const PATH = `/home/user/квартира${PROJECT_EXTENSION}`
 
@@ -32,8 +34,8 @@ function buildTree(tree) {
     parentId: panelId,
     kind: 'consumer',
     name: 'Холодильник',
-    typeId: 'fridge',
-    typeName: 'Холодильник',
+    loadType: loadTypeRow(),
+    zone: zoneRow(),
   })
   return panelId
 }
