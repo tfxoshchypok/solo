@@ -1,6 +1,6 @@
 # Contract: Internal service and engine signatures
 
-**Date**: 2026-09-10 | **Plan**: [../plan.md](../plan.md) | **Data model**: [../data-model.md](../data-model.md)
+**Date**: 2026-09-10, revised 2026-10-11 (save and recovery fixes) | **Plan**: [../plan.md](../plan.md) | **Data model**: [../data-model.md](../data-model.md)
 
 The internal surfaces this feature exposes. There is no HTTP API and no external caller; these are the
 boundaries that keep the requirements testable as plain function calls.
@@ -133,19 +133,37 @@ projectFileName(name)            // → string    a project name → a safe file
 ### `services/ProjectFileService.js`
 
 ```js
+AUTOSAVE_DELAY_MS                // 400
+UNSAVED_SIDECAR_NAME             // 'unsaved.autosave.json', in appDataDir()
+
 load(path)                       // → { project } | throws LoadError    FR-035, FR-036
-save(project, path)              // → the project as written, with a fresh modifiedAt
-                                 //   write .tmp → move → drop the sidecar    FR-031, FR-033
+save(project, path, { previousPath = path })
+                                 // → the project as written, with a fresh modifiedAt
+                                 //   write .tmp → move → drop this file's sidecar and the one under
+                                 //   previousPath (null → the unsaved one)    FR-031, FR-033, SAVE-03
 scheduleAutosave(project, path)  // debounced 400 ms; `path` null → the data directory   R2
-flushAutosave()                  // → the sidecar path; writes the queued state now
-autosaveSettled()                // → resolves once a scheduled write has landed
+flushAutosave()                  // → the sidecar path | null; writes the queued state now, after any
+                                 //   write already running    SAVE-02
+autosaveSettled()                // → resolves once every write already started has landed
 cancelAutosave()                 // drops the queued write, e.g. because a save just happened
+setAutosaveErrorHandler(handler) // → unregister; told about each sidecar write the timer failed   SAVE-02
 findRecovery(path)               // → { sidecarPath, modifiedAt } | null
-discardRecovery(path)            // → void
+discardRecovery(path)            // → void, removed behind any write already running
+setAsideRecovery(sidecarPath, { now })
+                                 // → keptAs | null; moves a broken copy to
+                                 //   unsaved.refused-<ISO, ":" and "." → "-">.json    RECOVERY-01
 
 normalize(project)               // file → { rootId, nodes }   the store's map
 denormalize(tree, meta)          // { rootId, nodes } + { name, catalogVersion, createdAt } → file
 ```
+
+Sidecar writes, saves and sidecar removals share one queue: each starts after the previous one has
+landed, so a sidecar can never land after the save that dropped it (SAVE-02). The window-close flush
+(`closeGuard.flushPendingWrites`) therefore also waits for a sidecar write already on its way to the
+disk. A save drops only its own sidecars, never the one written last, which may belong to a project
+the editor has already left (SAVE-03). An edit queued under the old path while a save runs is
+re-pointed at the new one, so the first «Зберегти як…» leaves no unsaved copy behind (RECOVERY-01).
+The SAVE and RECOVERY codes are the tasks in `docs/save-recovery-fixes.md`.
 
 `normalize` and `denormalize` are pure and live here rather than in the store, so the file shape and
 the runtime shape are converted in one place that tests without Pinia (data-model.md *Runtime shape*).
@@ -175,6 +193,24 @@ the filesystem directly.
 name (R8). Search is a pure function taking that index, so it tests without Pinia.
 
 `stores/project.js` holds `path`, `name`, `isDirty`, `catalogVersion`, `recovery`.
+
+It also counts edits and opened projects. A save clears `isDirty` only if nothing changed while it
+was writing, and one that lands after another project opened changes nothing; «Зберегти» on close
+keeps the window open when the save left the project dirty (SAVE-01). Leaving a project whose unsaved
+changes the user discarded drops its sidecar (SAVE-03). `onAutosaveError(handler)` passes
+`setAutosaveErrorHandler` through for the shell.
+
+The copy a crash left of a project without a file is offered once per session, from `onMounted` in
+`components/AppLayout.vue` (RECOVERY-01):
+
+```js
+checkStartupRecovery()   // → { name, modifiedAt } | { refusal: { error, keptAs } } | null
+restoreStartupRecovery() // the copy opens with path null and isDirty true
+discardStartupRecovery() // removes the copy; edits made meanwhile get their own
+```
+
+From the start of the check until the answer, the copy is held: no autosave writes over it and no
+other action removes it. A copy that cannot be read stays held for the rest of the session.
 
 `stores/ui.js` holds theme and sidebar state, persisted through `Neutralino.storage`.
 

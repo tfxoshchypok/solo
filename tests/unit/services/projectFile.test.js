@@ -2,6 +2,7 @@
 // refused whole with the failing element named (FR-035, FR-036, SC-005).
 //
 // Everything here runs over `MemoryFs`, so no test opens a dialog or touches a real path.
+import process from 'node:process'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setFs, MemoryFs } from '@/services/fs/index.js'
 import { LoadError } from '@/services/LoadError.js'
@@ -14,6 +15,7 @@ import {
 } from '@/services/ProjectFileService.js'
 import builtin from '@/data/referenceTables.builtin.json'
 import { tree, consumer, loadTypeRow, zoneRow } from '../../fixtures/tree.js'
+import { GatedFs, isSidecar } from '../../fixtures/gatedFs.js'
 
 const PATH = '/home/user/квартира.eltree.json'
 const META = { name: 'Квартира на Лесі Українки' }
@@ -418,6 +420,17 @@ describe('autosave sidecar (FR-031, R2)', () => {
     expect(await fs.exists(`${PATH}.autosave.json`)).toBe(false)
   })
 
+  // SAVE-03: the copy written last may belong to a project the editor has already left.
+  it('saving one project leaves the copy of another, even the one written last', async () => {
+    const other = '/home/user/дача.eltree.json'
+    ProjectFileService.scheduleAutosave(denormalize(sample(), META), PATH)
+    await ProjectFileService.flushAutosave()
+
+    await ProjectFileService.save(denormalize(sample(), META), other)
+
+    expect(await fs.exists(`${PATH}.autosave.json`)).toBe(true)
+  })
+
   it('discardRecovery drops the sidecar and never throws when there is none', async () => {
     ProjectFileService.scheduleAutosave(denormalize(sample(), META), PATH)
     await ProjectFileService.flushAutosave()
@@ -433,5 +446,109 @@ describe('autosave sidecar (FR-031, R2)', () => {
 
     const { project } = await ProjectFileService.load(sidecarPath)
     expect(normalize(project).nodes).toEqual(sample().nodes)
+  })
+})
+
+// SAVE-02: a write the timer has already started is no longer in the queue. Everything that waits on
+// autosave — the close guard, an explicit save, the next write — has to see it anyway.
+describe('autosave writes run one at a time, and a flush waits for them (SAVE-02)', () => {
+  const sidecar = `${PATH}.autosave.json`
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+  const state = (name) => denormalize(sample(), { name })
+  const sidecarName = async () => JSON.parse(await fs.readText(sidecar)).name
+
+  /** Lets the debounce fire and returns once its write has started and is being held. */
+  async function startHeldWrite(name) {
+    const { release, reached } = fs.hold(isSidecar)
+    ProjectFileService.scheduleAutosave(state(name), PATH)
+    vi.advanceTimersByTime(AUTOSAVE_DELAY_MS)
+    await reached
+    return release
+  }
+
+  beforeEach(() => {
+    fs = new GatedFs({ dataDir: '/memfs/data' })
+    setFs(fs)
+    vi.useFakeTimers()
+  })
+
+  it('a flush does not resolve while a started write is still running', async () => {
+    const release = await startHeldWrite('перший стан')
+    vi.useRealTimers()
+
+    let flushed = false
+    const flushing = ProjectFileService.flushAutosave().then(() => {
+      flushed = true
+    })
+    await settle()
+    expect(flushed).toBe(false)
+
+    release()
+    await flushing
+    expect(await sidecarName()).toBe('перший стан')
+  })
+
+  it('a newer state queued behind a running write lands after it, never under it', async () => {
+    const release = await startHeldWrite('перший стан')
+    ProjectFileService.scheduleAutosave(state('другий стан'), PATH)
+    vi.advanceTimersByTime(AUTOSAVE_DELAY_MS)
+    vi.useRealTimers()
+    await settle()
+
+    release()
+    await settle()
+    await ProjectFileService.flushAutosave()
+    expect(await sidecarName()).toBe('другий стан')
+  })
+
+  it('a flush resolves at once when nothing is queued or running', async () => {
+    vi.useRealTimers()
+
+    let flushed = false
+    ProjectFileService.flushAutosave().then(() => {
+      flushed = true
+    })
+    await settle()
+    expect(flushed).toBe(true)
+  })
+
+  it('a failed write is reported rather than left unhandled, and the next one still runs', async () => {
+    const reported = []
+    const unregister = ProjectFileService.setAutosaveErrorHandler((error) => reported.push(error))
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      vi.spyOn(fs, 'writeText').mockRejectedValueOnce(new Error('диск заповнений'))
+      ProjectFileService.scheduleAutosave(state('перший стан'), PATH)
+      vi.advanceTimersByTime(AUTOSAVE_DELAY_MS)
+      vi.useRealTimers()
+      await settle()
+
+      expect(unhandled).not.toHaveBeenCalled()
+      expect(reported.map((error) => error.message)).toEqual(['диск заповнений'])
+
+      ProjectFileService.scheduleAutosave(state('другий стан'), PATH)
+      await ProjectFileService.flushAutosave()
+      expect(await sidecarName()).toBe('другий стан')
+    } finally {
+      process.off('unhandledRejection', unhandled)
+      unregister()
+    }
+  })
+
+  // The save removes the sidecar, but a write that started before it lands afterwards and puts back
+  // a copy newer than the file: the next open would offer work that is already saved.
+  it('an explicit save while a sidecar write runs leaves no sidecar behind', async () => {
+    const release = await startHeldWrite('стан до збереження')
+    vi.useRealTimers()
+
+    const saving = ProjectFileService.save(state('збережений стан'), PATH)
+    await settle()
+    release()
+    await saving
+    await settle()
+
+    expect(await fs.exists(sidecar)).toBe(false)
+    expect(await ProjectFileService.findRecovery(PATH)).toBe(null)
   })
 })

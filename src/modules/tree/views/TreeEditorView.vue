@@ -109,7 +109,12 @@ async function confirmDiscard(title) {
 }
 
 async function newProject() {
-  if (await confirmDiscard('Почати новий проект?')) project.newProject()
+  if (!(await confirmDiscard('Почати новий проект?'))) return
+  try {
+    await project.newProject()
+  } catch (error) {
+    report(error)
+  }
 }
 
 /**

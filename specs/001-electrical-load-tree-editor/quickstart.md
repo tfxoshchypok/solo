@@ -84,16 +84,42 @@ test. The requirement each proves is named so a failure points somewhere.
 
 ### V3 — Save, reopen, survive (User Story 3)
 
-1. Save the project, close the app, reopen the file. **Expect**: the tree, every name, every quantity
-   and every note identical. *(FR-033, FR-035, SC-005)*
+1. Save the project, change it and save again, close the app, reopen the file. **Expect**: the tree,
+   every name, every quantity and every note identical to the second save. *(FR-033, FR-035, SC-005)*
 2. Open a file written against an older catalog that named a type this build no longer ships.
    **Expect**: the consumer still reads correctly, from its stored `typeName`. *(FR-034)*
 3. Truncate a project file by hand and open it. **Expect**: refused whole, with the failing element
    named; the previously open project is untouched. *(FR-036)*
 4. Disconnect the network, then create, place and save. **Expect**: every step completes. *(FR-032)*
-5. With unsaved changes, kill the process (`kill -9`). Relaunch and open the same project.
-   **Expect**: the recovered state offered, and accepting it restores the last confirmed structural
-   change. *(FR-031)*
+5. With unsaved changes in a saved project, wait a second (the copy is written 400 ms after the last
+   change), then kill the process (`kill -9`). Relaunch and open the same project. **Expect**: the
+   recovered state offered, and accepting it restores the last confirmed structural change with the
+   unsaved mark in the title. *(FR-031)*
+6. With unsaved changes, close the window and answer «Зберегти». **Expect**: the file saved, the
+   window closed, no `.autosave.json` beside the file. Repeat with «Не зберігати». **Expect**: the
+   window closes, the change is not in the file, and reopening it offers no recovery. *(FR-031)*
+7. Change saved project A, wait a second, then «Відкрити…» → «Продовжити» → pick project B. Open A
+   again. **Expect**: no recovery offer, and A's `<path>.autosave.json` is gone. *(SAVE-03)*
+8. Create a new project, add a panel with a consumer, wait a second, kill the process. Relaunch.
+   **Expect**: exactly one question «Відновити незбережений проект?» with «Відновити» and «Відкинути
+   копію»; neither Escape nor a click outside closes it. *(RECOVERY-01)*
+9. Answer «Відновити». **Expect**: the tree, the name and every consumer field as before the crash;
+   no file name in the title, the unsaved mark shown. Switch to «Довідники» and back: no second
+   question. «Зберегти» asks for a path; cancel it, kill the process and relaunch: the question comes
+   back. This time save to a path. **Expect**: `~/.local/share/ua.eltree.editor/unsaved.autosave.json`
+   is gone. *(RECOVERY-01)*
+10. Repeat step 8 and answer «Відкинути копію». **Expect**: an empty project,
+    `unsaved.autosave.json` gone, and the next launch asks nothing. *(RECOVERY-01)*
+11. Close the app, write `{ broken` into `~/.local/share/ua.eltree.editor/unsaved.autosave.json` and
+    start it. **Expect**: no question; one error message naming `unsaved.refused-<timestamp>.json`,
+    which sits in the same directory and holds `{ broken`. *(RECOVERY-01)*
+
+Slow or failing disk I/O cannot be staged by hand on a local disk: an edit made while a save is
+writing (SAVE-01), a sidecar write still running when the window closes (SAVE-02), a failed sidecar
+write, a copy that cannot be read or deleted. Those are covered by `tests/unit/stores/project.test.js`,
+`tests/unit/services/projectFile.test.js`, `tests/unit/services/closeGuard.test.js` and
+`tests/component/startupRecovery.test.js`, which hold each write at a gate the test opens. The limits
+of the guarantee — 400 ms of work on a crash, 2 s for pending writes on close — are in the README.
 
 ### V4 — Scale
 
@@ -112,5 +138,7 @@ perceptible delay. *(FR-037, SC-006)*
 | A node shows no name after a catalog change | `typeName` was not written at placement, or was refreshed on load |
 | Load accepted something broken | the valibot schema in `src/schemas/`, then the structural checks in `contracts/project-file.md` |
 | Truncated project file after a crash | the write path skipped `.tmp` and `move` |
+| Recovery offered for changes already saved or discarded | which copy is dropped: `leave` and `writeTo` in `stores/project.js`, `dropSidecars` in `ProjectFileService.js` |
+| No question at startup after a never-saved project crashed | `checkStartupRecovery` in `stores/project.js`, called from `onMounted` in `components/AppLayout.vue` |
 | Undo restores a subtree at the wrong position | `engine/treeOps.js` — `removeNode` must snapshot the sibling index |
 | A write outside `treeOps` silently succeeded | the map was not frozen — `produce` or `freeze(…, true)` missing on that path |

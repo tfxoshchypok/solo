@@ -271,31 +271,56 @@ export async function load(path) {
  * `.tmp` first, then one `move`. The previous file stands until the move completes, so a crash
  * mid-write leaves the last good project intact rather than a truncated one (FR-031).
  *
+ * It waits its turn behind any sidecar write already running, so that write cannot land after the
+ * sidecars are dropped and leave a copy newer than the file (SAVE-02).
+ *
+ * The sidecars dropped are this file's and the one the project kept under its previous path — the
+ * unsaved one in the data directory when `previousPath` is null. Nobody else's: the sidecar written
+ * last may belong to a project the editor has already left (SAVE-03).
+ *
+ * @param {object} project
+ * @param {string} path
+ * @param {{ previousPath?: string|null }} [options] where the project lived before this save
  * @returns {Promise<object>} the project as it was written, with the fresh `modifiedAt`
  */
-export async function save(project, path) {
-  const fs = getFs()
+export function save(project, path, { previousPath = path } = {}) {
   cancelAutosave()
-
-  const payload = {
-    ...project,
-    schemaVersion: SCHEMA_VERSION,
-    modifiedAt: new Date().toISOString(),
-  }
-  const tmp = tmpPath(path)
-  await fs.writeText(tmp, serialize(payload))
-  await fs.move(tmp, path)
-  await dropSidecars(path)
-  return payload
+  return enqueue(async () => {
+    const fs = getFs()
+    const payload = {
+      ...project,
+      schemaVersion: SCHEMA_VERSION,
+      modifiedAt: new Date().toISOString(),
+    }
+    const tmp = tmpPath(path)
+    await fs.writeText(tmp, serialize(payload))
+    await fs.move(tmp, path)
+    // An edit made while this write ran was queued under the old path. Written there, after the
+    // old copy is dropped below, it would come back as a copy of a project that has moved on.
+    if (queued && queued.path === previousPath) queued = { ...queued, path }
+    await dropSidecars(path, previousPath)
+    return payload
+  })
 }
 
 // ---------------------------------------------------------------- autosave sidecar
 
 let timer = null
 let queued = null
-let inFlight = null
-/** The sidecar last written, which may be the unsaved one in the data directory. */
-let lastSidecarPath = null
+let autosaveErrorHandler = null
+
+/**
+ * Sidecar writes, saves and sidecar removals run on this chain one after another, so an older
+ * state never lands over a newer one and a removal never races the write it removes (SAVE-02).
+ * A failed step does not stop the chain; its caller gets the rejection.
+ */
+let chain = Promise.resolve()
+
+function enqueue(task) {
+  const run = chain.then(task)
+  chain = run.catch(() => {})
+  return run
+}
 
 async function unsavedSidecarPath() {
   return join(await appDataDir(), UNSAVED_SIDECAR_NAME)
@@ -314,36 +339,50 @@ async function writeQueued() {
   const sidecarPath = await sidecarPathFor(path)
   if (!path) await fs.ensureDir(await appDataDir())
   await fs.writeText(sidecarPath, serialize(project))
-  lastSidecarPath = sidecarPath
   return sidecarPath
 }
 
 /**
  * Debounced at 400 ms: the editor writes a sidecar once the user pauses, not on every keystroke.
- * The latest call wins, so a burst of edits costs one write.
+ * The latest call wins, so a burst of edits costs one write. Nobody awaits the timer's write, so a
+ * failure goes to the handler the shell registered instead of becoming an unhandled rejection.
  */
 export function scheduleAutosave(project, path) {
   queued = { project, path }
   if (timer) clearTimeout(timer)
   timer = setTimeout(() => {
     timer = null
-    inFlight = writeQueued()
+    enqueue(writeQueued).catch((error) => autosaveErrorHandler?.(error))
   }, AUTOSAVE_DELAY_MS)
 }
 
-/** Resolves once the scheduled write has landed — the seam a test waits on. */
-export function autosaveSettled() {
-  return inFlight ?? Promise.resolve(null)
+/**
+ * @param {(error: Error) => void} handler told about every sidecar write the timer could not make
+ * @returns {() => void} unregisters it
+ */
+export function setAutosaveErrorHandler(handler) {
+  autosaveErrorHandler = handler
+  return () => {
+    if (autosaveErrorHandler === handler) autosaveErrorHandler = null
+  }
 }
 
-/** Writes the queued state now, without waiting out the debounce. @returns the sidecar path */
+/** Resolves once every write already started has landed — the seam a test waits on. */
+export function autosaveSettled() {
+  return chain
+}
+
+/**
+ * Writes the queued state now, without waiting out the debounce, and resolves only after any write
+ * already running has landed too — the window-close path relies on that (SAVE-02).
+ * @returns the sidecar path, or null when nothing was queued
+ */
 export function flushAutosave() {
   if (timer) {
     clearTimeout(timer)
     timer = null
   }
-  inFlight = writeQueued()
-  return inFlight
+  return enqueue(writeQueued)
 }
 
 export function cancelAutosave() {
@@ -352,13 +391,12 @@ export function cancelAutosave() {
   queued = null
 }
 
-async function dropSidecars(path) {
+async function dropSidecars(path, previousPath) {
   const fs = getFs()
-  const paths = new Set([autosavePath(path), lastSidecarPath].filter(Boolean))
+  const paths = new Set([autosavePath(path), await sidecarPathFor(previousPath)])
   for (const sidecarPath of paths) {
     if (await fs.exists(sidecarPath)) await fs.remove(sidecarPath)
   }
-  lastSidecarPath = null
 }
 
 /**
@@ -380,11 +418,36 @@ export async function findRecovery(path) {
   return { sidecarPath, modifiedAt: sidecar.modifiedAt }
 }
 
-export async function discardRecovery(path) {
-  const fs = getFs()
-  const sidecarPath = await sidecarPathFor(path)
-  if (await fs.exists(sidecarPath)) await fs.remove(sidecarPath)
-  if (lastSidecarPath === sidecarPath) lastSidecarPath = null
+/** Behind any sidecar write already running, or that write would put the sidecar back. */
+export function discardRecovery(path) {
+  return enqueue(async () => {
+    const fs = getFs()
+    const sidecarPath = await sidecarPathFor(path)
+    if (await fs.exists(sidecarPath)) await fs.remove(sidecarPath)
+  })
+}
+
+/** `unsaved.refused-2026-10-11T10-14-03-221Z.json` — the name carries no `:` for Windows. */
+function refusedName(now) {
+  return `unsaved.refused-${new Date(now).toISOString().replace(/[:.]/g, '-')}.json`
+}
+
+/**
+ * Moves a copy that cannot be loaded out of the autosave's way: left where it is, the next edit
+ * would write over it, and it is kept for the user to recover by hand (RECOVERY-01).
+ *
+ * @param {string} sidecarPath
+ * @param {{ now?: number }} [options] the clock the kept copy's name is stamped with
+ * @returns {Promise<string|null>} where it went, or null when it could not be moved
+ */
+export async function setAsideRecovery(sidecarPath, { now = Date.now() } = {}) {
+  const keptAs = join(await appDataDir(), refusedName(now))
+  try {
+    await getFs().move(sidecarPath, keptAs)
+    return keptAs
+  } catch {
+    return null
+  }
 }
 
 export const ProjectFileService = {
@@ -394,6 +457,8 @@ export const ProjectFileService = {
   flushAutosave,
   autosaveSettled,
   cancelAutosave,
+  setAutosaveErrorHandler,
   findRecovery,
   discardRecovery,
+  setAsideRecovery,
 }

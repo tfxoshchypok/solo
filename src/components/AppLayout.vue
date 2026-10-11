@@ -7,6 +7,7 @@ import { useUiStore } from '@/stores/ui.js'
 import { useProjectStore } from '@/stores/project.js'
 import { useReferenceTablesStore } from '@/modules/reference/stores/referenceTables.js'
 import { useExitPrompt } from '@/composables/useExitPrompt.js'
+import { useRecoveryPrompt } from '@/composables/useRecoveryPrompt.js'
 import { LoadError } from '@/services/LoadError.js'
 import { decideExit, setExitDecision } from '@/services/closeGuard.js'
 
@@ -16,6 +17,7 @@ const referenceTables = useReferenceTablesStore()
 const route = useRoute()
 const message = useMessage()
 const promptExit = useExitPrompt()
+const promptRecovery = useRecoveryPrompt()
 
 // Closing the window with unsaved work asks first (FR-031). The shell registers the question rather
 // than the tree view, because the shell stays mounted whichever section is open (002/FR-008,
@@ -39,6 +41,12 @@ const unregisterExitDecision = setExitDecision(() =>
 )
 onBeforeUnmount(unregisterExitDecision)
 
+// Nobody waits on the autosave timer's write, so the shell is where its failure gets said (SAVE-02).
+const unregisterAutosaveError = project.onAutosaveError((error) =>
+  message.error(`Не вдалося автозберегти проект — ${error?.message ?? error}`),
+)
+onBeforeUnmount(unregisterAutosaveError)
+
 // The shell lives for the whole session, so it reads the stored reference tables once, at startup,
 // and says so once if the stored file had to be set aside (002/FR-007). Both sections read the
 // tables through the store from then on.
@@ -58,6 +66,41 @@ onMounted(async () => {
     `Довідники не прочитались — ${refusal.error.message}. Відкрито початкові таблиці; ${kept}.`,
     { duration: 10000, closable: true },
   )
+})
+
+// A project that never had a file keeps its copy in the data directory, so nothing but the shell is
+// there at startup to offer it, once per session (RECOVERY-01). It runs beside the tables load: a
+// broken tables file must not hide the offer.
+onMounted(async () => {
+  let found
+  try {
+    found = await project.checkStartupRecovery()
+  } catch (error) {
+    message.error(`Не вдалося прочитати копію незбереженого проекту — ${error?.message ?? error}`, {
+      duration: 10000,
+      closable: true,
+    })
+    return
+  }
+  if (!found) return
+  if (found.refusal) {
+    const { error, keptAs } = found.refusal
+    const kept = keptAs ? `копію збережено як ${keptAs}` : 'зіпсовану копію відкласти не вдалося'
+    message.error(`Копія незбереженого проекту не прочиталась — ${error.message}; ${kept}.`, {
+      duration: 10000,
+      closable: true,
+    })
+    return
+  }
+
+  const answer = await promptRecovery(found)
+  try {
+    if (answer === 'restore') await project.restoreStartupRecovery()
+    else await project.discardStartupRecovery()
+  } catch (error) {
+    const action = answer === 'restore' ? 'відновити' : 'відкинути'
+    message.error(`Не вдалося ${action} копію — ${error?.message ?? error}`)
+  }
 })
 
 const icon = (component) => () => h(NIcon, null, { default: () => h(component) })

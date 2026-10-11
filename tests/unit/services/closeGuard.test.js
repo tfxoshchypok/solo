@@ -2,11 +2,19 @@
 // sitting in the timer. FR-031 says that change must survive, which means something has to flush
 // the sidecar before the process goes away.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import { setFs, MemoryFs } from '@/services/fs/index.js'
-import { ProjectFileService, denormalize } from '@/services/ProjectFileService.js'
+import {
+  AUTOSAVE_DELAY_MS,
+  ProjectFileService,
+  denormalize,
+} from '@/services/ProjectFileService.js'
 import { createCloseHandler, decideExit, flushPendingWrites } from '@/services/closeGuard.js'
 import { ReferenceTablesFileService } from '@/services/ReferenceTablesFileService.js'
+import { useProjectStore } from '@/stores/project.js'
+import { useTreeStore } from '@/modules/tree/stores/tree.js'
 import { tree, consumer } from '../../fixtures/tree.js'
+import { GatedFs, isSidecar, isTmp } from '../../fixtures/gatedFs.js'
 
 const PATH = '/home/user/квартира.eltree.json'
 
@@ -40,6 +48,7 @@ beforeEach(() => {
 afterEach(() => {
   ProjectFileService.cancelAutosave()
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 describe('the window-close guard keeps the last change (FR-031)', () => {
@@ -91,28 +100,11 @@ describe('the window-close guard keeps the last change (FR-031)', () => {
   })
 })
 
-/** MemoryFs whose writes wait until the test lets them through. */
-class GatedFs extends MemoryFs {
-  hold() {
-    let release
-    this.gate = new Promise((resolve) => (release = resolve))
-    return () => {
-      this.gate = null
-      release()
-    }
-  }
-
-  async writeText(path, text) {
-    if (this.gate) await this.gate
-    return super.writeText(path, text)
-  }
-}
-
 describe('the window-close flush covers every pending write (FR-031, research R4)', () => {
   it('waits for a reference tables write that has not finished yet', async () => {
     const gated = new GatedFs()
     setFs(gated)
-    const release = gated.hold()
+    const { release } = gated.hold()
     const saving = ReferenceTablesFileService.save(ReferenceTablesFileService.loadBuiltin())
 
     let flushed = false
@@ -133,6 +125,29 @@ describe('the window-close flush covers every pending write (FR-031, research R4
     await flushPendingWrites()
 
     expect(await ProjectFileService.findRecovery(PATH)).not.toBeNull()
+  })
+
+  // SAVE-02: the debounce has already fired and its write is on the disk's side. Nothing is queued,
+  // so a flush that only looks at the queue lets the window go before the sidecar lands.
+  it('waits for a sidecar write the autosave timer has already started', async () => {
+    const gated = new GatedFs()
+    setFs(gated)
+    vi.useFakeTimers()
+    const { release, reached } = gated.hold(isSidecar)
+    ProjectFileService.scheduleAutosave(sample('Кухня, запис уже йде'), PATH)
+    vi.advanceTimersByTime(AUTOSAVE_DELAY_MS)
+    await reached
+    vi.useRealTimers()
+
+    const exit = vi.fn()
+    const closing = createCloseHandler({ flush: flushPendingWrites, exit })()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(exit).not.toHaveBeenCalled()
+
+    release()
+    await closing
+    expect(exit).toHaveBeenCalledTimes(1)
+    expect(await gated.exists(`${PATH}.autosave.json`)).toBe(true)
   })
 })
 
@@ -205,9 +220,13 @@ describe('decideExit turns the user’s answer into a verdict (FR-031)', () => {
   })
 
   it('saves and then closes when the user asks to save', async () => {
-    const save = vi.fn().mockResolvedValue('/home/user/квартира.eltree.json')
+    let dirty = true
+    const save = vi.fn(async () => {
+      dirty = false
+      return '/home/user/квартира.eltree.json'
+    })
     const { discard } = spies()
-    const go = await decideExit({ isDirty: () => true, prompt: async () => 'save', save, discard })
+    const go = await decideExit({ isDirty: () => dirty, prompt: async () => 'save', save, discard })
 
     expect(go).toBe(true)
     expect(save).toHaveBeenCalledTimes(1)
@@ -252,5 +271,34 @@ describe('decideExit turns the user’s answer into a verdict (FR-031)', () => {
 
     expect(go).toBe(true)
     expect(discard).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('«Зберегти» on close covers only what it wrote (SAVE-01)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('keeps the window open when an edit lands while the save is writing', async () => {
+    const gated = new GatedFs({ savePath: PATH })
+    setFs(gated)
+    const project = useProjectStore()
+    const treeStore = useTreeStore()
+    await project.saveAs()
+    treeStore.add({ parentId: treeStore.rootId, kind: 'panel', name: 'Кухня' })
+
+    const { release, reached } = gated.hold(isTmp)
+    const deciding = decideExit({
+      isDirty: () => project.isDirty,
+      prompt: async () => 'save',
+      save: () => project.save(),
+      discard: () => project.discardUnsaved(),
+    })
+    await reached
+    treeStore.add({ parentId: treeStore.rootId, kind: 'panel', name: 'Ванна' })
+    release()
+
+    expect(await deciding).toBe(false)
+    expect(project.isDirty).toBe(true)
   })
 })

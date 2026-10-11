@@ -16,8 +16,10 @@ const FLUSH_TIMEOUT_MS = 2000
  * Turns the answer to "save before closing?" into a verdict: true lets the window close.
  *
  * A save that the user backs out of at the file dialog, or one that fails, keeps the window open:
- * closing then would throw away the very work they were trying to keep. Choosing not to save drops
- * the autosave sidecar, or the next launch would offer to recover what they just declined.
+ * closing then would throw away the very work they were trying to keep. So does a save that left
+ * the project dirty, because an edit landed while the file was being written (SAVE-01). Choosing
+ * not to save drops the autosave sidecar, or the next launch would offer to recover what they just
+ * declined.
  *
  * @param {{
  *   isDirty: () => boolean,
@@ -33,7 +35,7 @@ export async function decideExit({ isDirty, prompt, save, discard }) {
   const answer = await prompt()
   if (answer === 'save') {
     try {
-      return Boolean(await save())
+      return Boolean(await save()) && !isDirty()
     } catch {
       return false
     }

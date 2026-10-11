@@ -351,3 +351,27 @@ by hand in the Neutralino window.
 - **Rows are 36 px with 15 px text** — a requested change, not a defect. It goes through
   `:theme-overrides`, because the virtual list sizes rows by the theme's `nodeHeight`
   (`Tree.mjs:1212`); a CSS-only change would let rows drift as the list scrolls.
+
+- [X] T073 Keep an edit made during a save unsaved per FR-031 (SAVE-01) — the save took its snapshot before the write but cleared `isDirty` after it, so a change made while the file was being written was neither in the file nor marked unsaved, and «Зберегти» on close let the window go. `stores/project.js` now counts edits and opened projects: a save clears `isDirty` only when the revision it wrote is still current, and changes nothing once another project has opened. `decideExit` keeps the window open when the save left the project dirty
+- [X] T074 Run sidecar writes, saves and sidecar removals one at a time per FR-031 (SAVE-02) — nothing waited for the timer's write: the close flush could let the window go before the sidecar landed, and a sidecar could land after the save that had dropped it. One queue in `ProjectFileService` now carries all three; `flushAutosave` waits for a write already running, and a failed timer write goes to `setAutosaveErrorHandler`, which the shell turns into a message instead of an unhandled rejection
+- [X] T075 Drop only the copy of the project being left per FR-031 (SAVE-03) — a save dropped the sidecar written last, which could belong to a project the editor had already left, while «Продовжити» on switching projects dropped nothing, so reopening the left project offered the changes the user had just discarded. `save` takes `previousPath` and drops only its own sidecars; `leave` in `stores/project.js` drops the left project's copy when its unsaved changes were discarded and the next project is a different one
+- [X] T076 Offer the copy of a project without a file at startup per FR-031 (RECOVERY-01) — `findRecovery` ran only after a file was picked, so `unsaved.autosave.json` was never offered, and the first edit after a restart wrote over it. `AppLayout.vue` checks once per session and asks «Відновити» / «Відкинути копію» in a dialog that cannot be dismissed; until the answer the copy is held, so no autosave writes over it and no other action removes it. A broken copy is moved to `unsaved.refused-<ISO>.json` and named in the message. An edit queued under the old path during the first «Зберегти як…» now goes to the new file's sidecar
+
+Done 2026-10-11, from the task list in `docs/save-recovery-fixes.md`. The suite is 418 across 32
+files; `npx eslint .`, `npx prettier --check .` and `npm run build` clean. V3.1 and V3.5–V3.11 in
+`quickstart.md` were checked by hand in the Neutralino window on Linux, and all of them passed.
+
+- **Slow and failing I/O is covered by tests only**: an edit made during a save, a sidecar write
+  still running at close, a failed sidecar write, a copy that cannot be read or deleted. A local disk
+  cannot stage them by hand; `tests/fixtures/gatedFs.js` holds a chosen write until the test
+  releases it.
+- **Not checked**: Windows and macOS; a write that outlasts the 2 s close timeout, after which the
+  window closes anyway by design.
+- **Kept as is, and described in the README**: a copy declined with «Відкрити файл» stays on disk
+  only until the next edit of that file writes over it; a copy of a project without a file that
+  cannot be read stays held for the session, so that project is not autosaved until it gets a file.
+- **Three existing tests changed with the behaviour**: `saves and then closes when the user asks to
+  save` (its `isDirty` now follows the save), `offers the sidecar on open…` (the crash is simulated
+  with a fresh Pinia, since «Новий» after discarded changes now drops the copy), and `a slow save of
+  one project cannot rewrite the project opened after it` (`openPath` now waits for the left
+  project's copy to be removed, which is queued behind the held save).
