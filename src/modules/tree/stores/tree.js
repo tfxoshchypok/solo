@@ -23,11 +23,17 @@ import {
   setCableSection as setCableSectionOn,
   wrapChildrenInPanel,
 } from '../engine/treeOps.js'
+import {
+  setBuySeparately as setBuySeparatelyOn,
+  setIncomingDeviceMark as setIncomingDeviceMarkOn,
+  setPanelOverride as setPanelOverrideOn,
+  setProjectProperty as setProjectPropertyOn,
+} from '../engine/panelProperties.js'
 
 /** Steps of undo history kept. 100 snapshots of a 500-node map is a few megabytes (R5). */
 export const HISTORY_CAPACITY = 100
 
-/** A new project is exactly one node of kind `entry` (FR-002). */
+/** A new project is exactly one node of kind `entry` (FR-002), its properties empty (003/FR-003). */
 export function createEmptyTree(name = 'Ввід') {
   const rootId = `n-${globalThis.crypto.randomUUID()}`
   return {
@@ -41,6 +47,14 @@ export function createEmptyTree(name = 'Ввід') {
           parentId: null,
           childIds: [],
           childrenKind: 'undecided',
+          projectProperties: {
+            supplyPhases: null,
+            moduleReservePct: null,
+            separateRcdMode: null,
+            maxLinesPerGroupRcd: null,
+            neutralBreak: null,
+            selectiveFeederRcd: null,
+          },
         },
       },
       true,
@@ -121,8 +135,20 @@ export const useTreeStore = defineStore('tree', () => {
     history.commit()
   }
 
+  /** The rows a new panel copies, as the table stands at this moment (003/FR-009). */
+  function incomingDeviceRows() {
+    return useReferenceTablesStore().tables.incomingDevices
+  }
+
   function add({ parentId, kind, name, loadType, zone }) {
-    const { nodes: next, nodeId } = addNode(nodes.value, { parentId, kind, name, loadType, zone })
+    const { nodes: next, nodeId } = addNode(nodes.value, {
+      parentId,
+      kind,
+      name,
+      loadType,
+      zone,
+      incomingDevices: incomingDeviceRows(),
+    })
     apply(next)
     // The parent opens whatever was added: a new panel is a place the user is about to fill, and a
     // new consumer is a row they need to see to rename it.
@@ -158,6 +184,26 @@ export const useTreeStore = defineStore('tree', () => {
     apply(setCableSectionOn(nodes.value, nodeId, mm2))
   }
 
+  /** One project property, set or cleared with `null`; one undo step (003/FR-002, 003/FR-021). */
+  function setProjectProperty(key, value) {
+    apply(setProjectPropertyOn(nodes.value, rootId.value, key, value))
+  }
+
+  /** A panel's own value, set or reset with `null`; one undo step (003/FR-006, 003/FR-021). */
+  function setPanelOverride(nodeId, key, value) {
+    apply(setPanelOverrideOn(nodes.value, nodeId, key, value))
+  }
+
+  /** One «встановлювати» mark of a panel; one undo step (003/FR-010, 003/FR-021). */
+  function setIncomingDeviceMark(nodeId, deviceId, install) {
+    apply(setIncomingDeviceMarkOn(nodes.value, nodeId, deviceId, install))
+  }
+
+  /** One «купувати окремо» mark of a panel; one undo step (003/FR-010, 003/FR-021). */
+  function setBuySeparately(nodeId, key, checked) {
+    apply(setBuySeparatelyOn(nodes.value, nodeId, key, checked))
+  }
+
   /** @returns {string[]} the ids that went, which the confirmation counted beforehand (FR-010) */
   function remove(nodeId) {
     const parentId = nodes.value[nodeId]?.parentId ?? rootId.value
@@ -183,8 +229,9 @@ export const useTreeStore = defineStore('tree', () => {
   function wrapConsumersAndAdd({ parentId, panelName, pending }) {
     // Chained through a local, never through `nodes.value`: the store must not hold an
     // intermediate tree at any point, or a reactive reader would render one.
-    const wrap = wrapChildrenInPanel(nodes.value, parentId, panelName)
-    const added = addNode(wrap.nodes, { parentId, ...pending })
+    const rows = incomingDeviceRows()
+    const wrap = wrapChildrenInPanel(nodes.value, parentId, panelName, rows)
+    const added = addNode(wrap.nodes, { parentId, ...pending, incomingDevices: rows })
 
     apply(added.nodes)
     expandedIds.value = [...new Set([...expandedIds.value, parentId, wrap.nodeId])]
@@ -202,7 +249,7 @@ export const useTreeStore = defineStore('tree', () => {
    * @returns {string} the id of the node that was moved, which is the one the caller selected
    */
   function wrapConsumersAndMove({ parentId, panelName, nodeId, index }) {
-    const wrap = wrapChildrenInPanel(nodes.value, parentId, panelName)
+    const wrap = wrapChildrenInPanel(nodes.value, parentId, panelName, incomingDeviceRows())
     const at = index ?? wrap.nodes[parentId].childIds.length
     // Throws before `apply`, so a refused move leaves the wrap unapplied too — the tree never
     // holds the intermediate state where the consumers moved but the node did not arrive.
@@ -267,6 +314,10 @@ export const useTreeStore = defineStore('tree', () => {
     setZone,
     setCopyValue,
     setCableSection,
+    setProjectProperty,
+    setPanelOverride,
+    setIncomingDeviceMark,
+    setBuySeparately,
     wrapConsumersAndAdd,
     wrapConsumersAndMove,
     remove,

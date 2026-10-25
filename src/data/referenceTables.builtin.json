@@ -438,5 +438,140 @@
       "separateRcd": true,
       "purpose": "Мережа після інвертора / ДБЖ (окремий нейтральний контур)"
     }
+  ],
+  "enclosureSizes": [
+    {
+      "id": "es-16cbf243-3dd2-4b4d-9b39-082ca5be1a02",
+      "rowModularity": 12,
+      "rowCount": 1
+    },
+    {
+      "id": "es-bbaae54d-d355-4bd2-b22e-c80256523937",
+      "rowModularity": 12,
+      "rowCount": 2
+    },
+    {
+      "id": "es-fdd1fed7-2583-4872-872b-5503cf5e592c",
+      "rowModularity": 12,
+      "rowCount": 3
+    },
+    {
+      "id": "es-e6fda05f-2ec7-4185-bda0-2fcdaf389132",
+      "rowModularity": 12,
+      "rowCount": 4
+    },
+    {
+      "id": "es-4b51b919-0f40-49f6-a16a-dfd40d187b8c",
+      "rowModularity": 13,
+      "rowCount": 1
+    },
+    {
+      "id": "es-0e76db6b-75b5-4ea5-a6f3-5f015760c83f",
+      "rowModularity": 13,
+      "rowCount": 2
+    },
+    {
+      "id": "es-58c8f2a2-981e-4e15-9106-370cd86df8c3",
+      "rowModularity": 13,
+      "rowCount": 3
+    },
+    {
+      "id": "es-7b1560c7-47f3-4c2c-bb51-34fa66afb40a",
+      "rowModularity": 13,
+      "rowCount": 4
+    },
+    {
+      "id": "es-d06e5179-9c19-4c9f-b8c1-753af0fa4790",
+      "rowModularity": 18,
+      "rowCount": 1
+    },
+    {
+      "id": "es-55abf9fc-278d-4025-a006-c8de82f185d2",
+      "rowModularity": 18,
+      "rowCount": 2
+    },
+    {
+      "id": "es-ef5b4b55-2d2e-4265-ba22-bc638da65965",
+      "rowModularity": 18,
+      "rowCount": 3
+    },
+    {
+      "id": "es-3d1a82ac-cc19-432f-8d3a-695b22a240b9",
+      "rowModularity": 18,
+      "rowCount": 4
+    },
+    {
+      "id": "es-75006233-f731-41b2-b6c2-84ea67f2fb66",
+      "rowModularity": 24,
+      "rowCount": 1
+    },
+    {
+      "id": "es-7e6dccc5-5a0f-4d06-9e7f-c8ea82689473",
+      "rowModularity": 24,
+      "rowCount": 2
+    },
+    {
+      "id": "es-4476a1c2-1edf-45f8-a90f-4e7e169458f6",
+      "rowModularity": 24,
+      "rowCount": 3
+    },
+    {
+      "id": "es-484183db-c17a-423f-a42b-a754f639bfda",
+      "rowModularity": 24,
+      "rowCount": 4
+    }
+  ],
+  "deviceWidths": [
+    {
+      "id": "dw-a268beb7-a9f5-43f7-9157-121ec41b786d",
+      "name": "1P",
+      "widthModules": 1
+    },
+    {
+      "id": "dw-6de6b174-7640-443b-b1a7-12fd12029722",
+      "name": "1P+N",
+      "widthModules": 2
+    },
+    {
+      "id": "dw-c419b3a3-20e7-4ebd-9685-0dde169aeebf",
+      "name": "2P",
+      "widthModules": 2
+    },
+    {
+      "id": "dw-a22e8ea0-f20c-4c2a-a1e3-a0bc6ab76de8",
+      "name": "3P",
+      "widthModules": 3
+    },
+    {
+      "id": "dw-f674c2f7-1130-4715-99e8-9bf3a889a96f",
+      "name": "4P",
+      "widthModules": 4
+    }
+  ],
+  "incomingDevices": [
+    {
+      "id": "iw-442163ab-4eb0-4740-b4c6-6bfa56df0649",
+      "name": "Реле напруги",
+      "width1ph": 2,
+      "width3ph": 4
+    },
+    {
+      "id": "iw-5760ce89-b9de-4c99-bfb3-9df1d57fc92c",
+      "name": "ОПН",
+      "width1ph": 2,
+      "width3ph": 4
+    },
+    {
+      "id": "iw-0058325c-00bf-4ea7-a3ac-87af324efc85",
+      "name": "Лічильник",
+      "width1ph": 6,
+      "width3ph": 8
+    },
+    {
+      "id": "iw-ae066f37-b565-407b-bc62-1a6409595f50",
+      "name": "Рубильник",
+      "width1ph": 2,
+      "width3ph": 4
+    }
   ]
 }

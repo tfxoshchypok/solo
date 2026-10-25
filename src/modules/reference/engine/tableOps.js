@@ -20,7 +20,13 @@ export class TableRuleError extends Error {
   }
 }
 
-const ID_PREFIX = { loadTypes: 'lt', zones: 'zn' }
+const ID_PREFIX = {
+  loadTypes: 'lt',
+  zones: 'zn',
+  enclosureSizes: 'es',
+  deviceWidths: 'dw',
+  incomingDevices: 'iw',
+}
 
 function defaultId(table) {
   return () => `${ID_PREFIX[table]}-${crypto.randomUUID()}`
@@ -50,6 +56,14 @@ function checkedValue(kind, value) {
     if (typeof value === 'number' && Number.isFinite(value)) return value
     throw new TableRuleError('notANumber', 'Тут має бути число.')
   }
+  if (kind === 'count') {
+    if (Number.isInteger(value) && value >= 1) return value
+    throw new TableRuleError('notACount', 'Тут має бути ціле число, не менше 1.')
+  }
+  if (kind === 'positive') {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
+    throw new TableRuleError('notPositive', 'Тут має бути число, більше 0.')
+  }
   if (kind === 'yesno') {
     if (typeof value === 'boolean') return value
     throw new TableRuleError('notYesNo', 'Тут можна вибрати лише «так» або «ні».')
@@ -59,13 +73,14 @@ function checkedValue(kind, value) {
 }
 
 /**
+ * A table without a name column, such as the enclosure sizes, takes no name (research R8).
  * @returns {{ tables: object, rowId: string }} the row is appended, every cell but its name empty
  */
 export function addRow(tables, table, name, newId = defaultId(table)) {
   const rows = rowsOf(tables, table)
-  const row = { id: newId(), name: checkedName(rows, name, null) }
+  const row = { id: newId() }
   for (const column of columns[table]) {
-    if (column.key !== 'name') row[column.key] = null
+    row[column.key] = column.kind === 'name' ? checkedName(rows, name, null) : null
   }
   const next = produce(tables, (draft) => {
     draft[table].push(row)
@@ -96,4 +111,10 @@ export function deleteRow(tables, table, rowId) {
   return produce(tables, (draft) => {
     draft[table].splice(index, 1)
   })
+}
+
+/** How a confirmation names a row: by its name, or an enclosure size by «12 × 2» (research R8). */
+export function rowLabel(table, row) {
+  if (table === 'enclosureSizes') return `${row.rowModularity ?? ''} × ${row.rowCount ?? ''}`
+  return row.name
 }

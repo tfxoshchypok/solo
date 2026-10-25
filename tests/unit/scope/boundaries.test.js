@@ -99,6 +99,7 @@ describe('the feature stops where FR-038 says it stops', () => {
       loadType: loadTypeRow({ id: 'lt-fridge', name: 'Холодильник' }),
       zone: zoneRow({ id: 'zn-kitchen', name: 'Кухня' }),
       cableSectionMm2: 2.5,
+      calculated: { groupRcd: null, phase: null },
       cableLength: 12,
     }
 

@@ -14,7 +14,14 @@ import {
   normalize,
 } from '@/services/ProjectFileService.js'
 import builtin from '@/data/referenceTables.builtin.json'
-import { tree, consumer, loadTypeRow, zoneRow } from '../../fixtures/tree.js'
+import {
+  tree,
+  consumer,
+  loadTypeRow,
+  zoneRow,
+  incomingDeviceRow,
+  emptyProjectProperties,
+} from '../../fixtures/tree.js'
 import { GatedFs, isSidecar } from '../../fixtures/gatedFs.js'
 
 const PATH = '/home/user/квартира.eltree.json'
@@ -96,9 +103,10 @@ async function writeProject(path = PATH, mutate = (project) => project) {
   return project
 }
 
-// The keys of a consumer in the file, and no more (002/FR-016, SC-006).
+// The keys of a consumer in the file, and no more (002/FR-016, SC-006, 003/FR-020).
 const CONSUMER_KEYS = [
   'cableSectionMm2',
+  'calculated',
   'childIds',
   'id',
   'kind',
@@ -319,6 +327,7 @@ describe('structural validation beyond the schema (contracts/project-file.md)', 
         parentId: null,
         childIds: [],
         childrenKind: 'undecided',
+        projectProperties: emptyProjectProperties(),
       })
       return project
     })
@@ -368,6 +377,88 @@ describe('structural validation beyond the schema (contracts/project-file.md)', 
     expect(project.nodes[2].zone).toEqual(fromFile.zone)
     expect(project.nodes[2].zone.leakageMa).not.toBe(localKitchen.leakageMa)
     expect(project.nodes[2].name).toBe('Холодильник')
+  })
+})
+
+describe('the file keeps the project properties, the panel keys and the calculated fields (003/FR-019, 003/FR-020, 003/FR-009, 003/SC-004)', () => {
+  const relay = incomingDeviceRow({ id: 'iw-relay', name: 'Реле напруги' })
+  const ups = incomingDeviceRow({ id: 'iw-ups', name: 'Блок АВР', width1ph: 3, width3ph: 5 })
+  const meter = incomingDeviceRow({ id: 'iw-meter', name: 'Лічильник', width1ph: 6, width3ph: 8 })
+
+  /** Entry → main panel → sub-panel → consumers, each 003 key partly set and partly empty. */
+  function propertiesProject() {
+    return tree({
+      id: 'root',
+      kind: 'entry',
+      name: 'Ввід',
+      projectProperties: { supplyPhases: 3, moduleReservePct: 20, separateRcdMode: 'rcbo' },
+      children: [
+        {
+          id: 'main',
+          kind: 'panel',
+          name: 'Головний',
+          overrides: { moduleReservePct: 40, neutralBreak: true },
+          incomingDevices: [
+            { ...relay, install: true },
+            { ...ups, install: false },
+            { ...meter, install: false },
+          ],
+          buySeparately: { combBusbars: true, blankingPlates: true },
+          children: [
+            {
+              id: 'garage',
+              kind: 'panel',
+              name: 'Гараж',
+              children: [
+                consumer('gate', { name: 'Ворота', loadType: fridge, zone: kitchen }),
+                consumer('lamp', { name: 'Світильник', zone: kitchen }),
+              ],
+            },
+          ],
+        },
+      ],
+    })
+  }
+
+  it('reopens every node with every field deep-equal, the empty ones included', async () => {
+    const before = propertiesProject()
+
+    await ProjectFileService.save(denormalize(before, META), PATH)
+    const { project } = await ProjectFileService.load(PATH)
+
+    expect(normalize(project).nodes).toEqual(before.nodes)
+    const written = JSON.parse(await fs.readText(PATH))
+    expect(written.nodes[0].projectProperties).toHaveProperty('maxLinesPerGroupRcd', null)
+    expect(written.nodes[1].overrides).toHaveProperty('separateRcdMode', null)
+    expect(written.nodes[1].calculated).toHaveProperty('enclosure', null)
+    expect(written.nodes[3].calculated).toEqual({ groupRcd: null, phase: null })
+  })
+
+  it('opens a panel’s copy as the file has it, whatever the local table holds', async () => {
+    const localMeter = builtin.incomingDevices.find((row) => row.name === 'Лічильник')
+    const copy = [
+      { ...ups, install: true },
+      { ...localMeter, width1ph: 5, width3ph: 7, install: true },
+    ]
+    await writeProject(PATH, (project) => {
+      project.nodes[1].incomingDevices = copy
+      return project
+    })
+
+    const { project } = await ProjectFileService.load(PATH)
+    expect(project.nodes[1].incomingDevices).toEqual(copy)
+    expect(project.nodes[1].incomingDevices[1].width1ph).not.toBe(localMeter.width1ph)
+  })
+
+  it('refuses a file whose entry has no project properties, naming the key', async () => {
+    await writeProject(PATH, (project) => {
+      delete project.nodes[0].projectProperties
+      return project
+    })
+
+    const error = await ProjectFileService.load(PATH).catch((e) => e)
+    expect(error).toBeInstanceOf(LoadError)
+    expect(error.path).toBe('nodes[0].projectProperties')
   })
 })
 

@@ -123,7 +123,7 @@ describe('homogeneity is the single predicate behind the add path', () => {
     const verdict = canAccept(nodes, 'p1', 'panel')
     let thrown
     try {
-      addNode(nodes, { parentId: 'p1', kind: 'panel', name: 'Підщиток' })
+      addNode(nodes, { parentId: 'p1', kind: 'panel', name: 'Підщиток', incomingDevices: [] })
     } catch (error) {
       thrown = error
     }
@@ -135,9 +135,9 @@ describe('homogeneity is the single predicate behind the add path', () => {
   it('leaves the tree unchanged when it refuses', () => {
     const { nodes } = panelHoldingConsumers()
     const before = JSON.stringify(nodes)
-    expect(() => addNode(nodes, { parentId: 'p1', kind: 'panel', name: 'Підщиток' })).toThrow(
-      RuleError,
-    )
+    expect(() =>
+      addNode(nodes, { parentId: 'p1', kind: 'panel', name: 'Підщиток', incomingDevices: [] }),
+    ).toThrow(RuleError)
     expect(JSON.stringify(nodes)).toBe(before)
   })
 })
@@ -170,6 +170,7 @@ describe('property: no panel ever holds both child kinds (R10)', () => {
                   name: 'x',
                   loadType: step.op === 'addConsumer' ? loadTypeRow() : undefined,
                   zone: step.op === 'addConsumer' ? zoneRow() : undefined,
+                  incomingDevices: step.op === 'addPanel' ? [] : undefined,
                 }).nodes
               }
             } catch (error) {

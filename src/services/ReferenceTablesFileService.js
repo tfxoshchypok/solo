@@ -9,7 +9,13 @@
 import * as v from 'valibot'
 import { freeze } from 'immer'
 import builtinTables from '@/data/referenceTables.builtin.json'
-import { ReferenceTablesSchema, findDuplicateName, formatIssuePath } from '@/schemas/index.js'
+import {
+  NAMED_TABLES,
+  REFERENCE_TABLES,
+  ReferenceTablesSchema,
+  findDuplicateName,
+  formatIssuePath,
+} from '@/schemas/index.js'
 import { getFs } from './fs/index.js'
 import { LoadError } from './LoadError.js'
 import { appDataDir, join, tmpPath } from './PathService.js'
@@ -17,17 +23,13 @@ import { appDataDir, join, tmpPath } from './PathService.js'
 export const REFERENCE_TABLES_FILE = 'reference-tables.json'
 export const REFERENCE_TABLES_VERSION = 1
 
-/** The runtime shape: both tables, without the file's `schemaVersion` (data-model.md). */
+/** The runtime shape: every table, without the file's `schemaVersion` (data-model.md). */
 function tablesOf(file) {
-  return { loadTypes: file.loadTypes, zones: file.zones }
+  return Object.fromEntries(REFERENCE_TABLES.map((table) => [table, file[table]]))
 }
 
 function serialize(tables) {
-  const file = {
-    schemaVersion: REFERENCE_TABLES_VERSION,
-    loadTypes: tables.loadTypes,
-    zones: tables.zones,
-  }
+  const file = { schemaVersion: REFERENCE_TABLES_VERSION, ...tablesOf(tables) }
   return `${JSON.stringify(file, null, 2)}\n`
 }
 
@@ -91,7 +93,7 @@ function checkFields(raw) {
 
 /** Ids and names, each unique within its own table; the second occurrence is the one named. */
 function checkUnique(file) {
-  for (const table of ['loadTypes', 'zones']) {
+  for (const table of REFERENCE_TABLES) {
     const rows = file[table]
     const ids = new Set()
     rows.forEach((row, i) => {
@@ -103,6 +105,7 @@ function checkUnique(file) {
       }
       ids.add(row.id)
     })
+    if (!NAMED_TABLES.includes(table)) continue
     const duplicate = findDuplicateName(rows)
     if (duplicate !== -1) {
       const path = `${table}[${duplicate}].name`

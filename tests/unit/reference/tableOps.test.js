@@ -8,6 +8,7 @@ import {
   addRow,
   updateCell,
   deleteRow,
+  rowLabel,
   TableRuleError,
 } from '@/modules/reference/engine/tableOps.js'
 import { LoadTypeSchema, ZoneSchema } from '@/schemas/index.js'
@@ -213,5 +214,70 @@ describe('every edit returns new frozen tables and leaves its argument alone', (
       expect(Object.isFrozen(next.zones[0])).toBe(true)
     }
     expect(tables).toEqual(before)
+  })
+})
+
+// The 003 tables: whole numbers of at least 1, numbers above 0, and enclosure sizes, whose rows have
+// no name (003/FR-016, 003/FR-017).
+describe('the 003 tables (003/FR-016, 003/FR-017)', () => {
+  it('refuses 0, 1.5 and -1 in a count cell with notACount and its rule', () => {
+    const tables = shipped()
+    const size = tables.enclosureSizes[0]
+    for (const value of [0, 1.5, -1]) {
+      const error = refusalOf(() => updateCell(tables, 'enclosureSizes', size.id, 'rowCount', value))
+      expect(error, String(value)).toBeInstanceOf(TableRuleError)
+      expect(error.code).toBe('notACount')
+      expect(error.message).toBe('Тут має бути ціле число, не менше 1.')
+    }
+  })
+
+  it('accepts 2 and null in a count cell', () => {
+    const tables = shipped()
+    const size = tables.enclosureSizes[0]
+    for (const value of [2, null]) {
+      const next = updateCell(tables, 'enclosureSizes', size.id, 'rowCount', value)
+      expect(next.enclosureSizes[0].rowCount, String(value)).toBe(value)
+    }
+  })
+
+  it('refuses 0 and -1 in a positive cell with notPositive and its rule, and accepts 0.5', () => {
+    const tables = shipped()
+    const relay = byName(tables.incomingDevices, 'Реле напруги')
+    for (const value of [0, -1]) {
+      const error = refusalOf(() =>
+        updateCell(tables, 'incomingDevices', relay.id, 'width1ph', value),
+      )
+      expect(error, String(value)).toBeInstanceOf(TableRuleError)
+      expect(error.code).toBe('notPositive')
+      expect(error.message).toBe('Тут має бути число, більше 0.')
+    }
+    const next = updateCell(tables, 'incomingDevices', relay.id, 'width1ph', 0.5)
+    expect(byName(next.incomingDevices, 'Реле напруги').width1ph).toBe(0.5)
+  })
+
+  it('appends an enclosure size with no name, every cell empty', () => {
+    const tables = shipped()
+    const { tables: next, rowId } = addRow(tables, 'enclosureSizes', undefined, () => 'es-x')
+
+    expect(rowId).toBe('es-x')
+    expect(next.enclosureSizes).toHaveLength(tables.enclosureSizes.length + 1)
+    expect(next.enclosureSizes.at(-1)).toEqual({ id: 'es-x', rowModularity: null, rowCount: null })
+  })
+
+  it('still requires a name for a device width, and refuses «2p», which reads as «2P»', () => {
+    expect(refusalOf(() => addRow(shipped(), 'deviceWidths', '', () => 'dw-x'))?.code).toBe(
+      'nameRequired',
+    )
+    expect(refusalOf(() => addRow(shipped(), 'deviceWidths', '2p', () => 'dw-x'))?.code).toBe(
+      'nameTaken',
+    )
+  })
+
+  it('labels a row by its name, and an enclosure size as «12 × 2»', () => {
+    const tables = shipped()
+    expect(rowLabel('deviceWidths', byName(tables.deviceWidths, '1P+N'))).toBe('1P+N')
+    expect(rowLabel('enclosureSizes', { id: 'es-x', rowModularity: 12, rowCount: 2 })).toBe(
+      '12 × 2',
+    )
   })
 })

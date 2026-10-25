@@ -1,6 +1,7 @@
 // A project file from another installation: its consumers hold copies of rows the local tables lack,
 // or hold with other values. Opened through the project file service, it shows the file's names and
 // values — never the local rows, never a mark (002/FR-015, 002/FR-018; User Story 3 scenarios 2–3).
+// A panel of such a file shows the incoming devices of its own copy, with their marks (003/FR-009).
 //
 // The inspector hooks are the ones `nodeInspector.test.js` describes: `data-copy="loadType" | "zone"`,
 // `data-row-select` on each row select, `data-cell="<column key>"` on each copied-value editor.
@@ -8,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { defineComponent, h } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { NConfigProvider, NMessageProvider, NSelect } from 'naive-ui'
+import { NCheckbox, NConfigProvider, NMessageProvider, NSelect } from 'naive-ui'
 import NodeInspector from '@/modules/tree/components/NodeInspector.vue'
 import { useTreeStore } from '@/modules/tree/stores/tree.js'
 import { useProjectStore } from '@/stores/project.js'
@@ -16,7 +17,13 @@ import { useReferenceTablesStore } from '@/modules/reference/stores/referenceTab
 import { denormalize } from '@/services/ProjectFileService.js'
 import { ReferenceTablesFileService } from '@/services/ReferenceTablesFileService.js'
 import { setFs, MemoryFs } from '@/services/fs/index.js'
-import { tree as buildTree, consumer, loadTypeRow, zoneRow } from '../fixtures/tree.js'
+import {
+  tree as buildTree,
+  consumer,
+  incomingDeviceRow,
+  loadTypeRow,
+  zoneRow,
+} from '../fixtures/tree.js'
 
 const PATH = '/home/user/від-колеги.eltree.json'
 
@@ -46,8 +53,9 @@ const Harness = defineComponent({
   },
 })
 
-/** Writes a file whose one consumer holds `fields`, opens it, and shows that consumer. */
-async function openFileWith(fields) {
+/** Writes a file whose one consumer holds `fields` and whose panel holds `panel`, opens it, and shows
+ * that consumer. */
+async function openFileWith(fields, panel = {}) {
   const file = denormalize(
     buildTree({
       id: 'root',
@@ -58,6 +66,7 @@ async function openFileWith(fields) {
           id: 'kitchen',
           kind: 'panel',
           name: 'Кухня',
+          ...panel,
           children: [consumer('c1', { name: 'Розетки фартуха', ...fields })],
         },
       ],
@@ -128,5 +137,26 @@ describe('a file from another installation opens with its own values (002/FR-015
     expect(reference.tables.loadTypes.find((row) => row.id === localSockets.id)).toEqual(
       localSockets,
     )
+  })
+})
+
+describe('a panel from another installation keeps its incoming devices (003/FR-009)', () => {
+  it('shows a device the local table lacks, with its mark', async () => {
+    const switcher = incomingDeviceRow({
+      id: 'iw-from-another-installation',
+      name: 'Перемикач мережа-генератор',
+    })
+    const local = useReferenceTablesStore().tables.incomingDevices
+    expect(local.some((row) => row.name === switcher.name)).toBe(false)
+
+    const tree = await openFileWith({}, { incomingDevices: [{ ...switcher, install: true }] })
+    tree.select('kitchen')
+    await flushPromises()
+
+    const marks = wrapper
+      .findAllComponents(NCheckbox)
+      .filter((box) => box.element.closest('[data-install-marks]'))
+    expect(marks.map((box) => box.text().trim())).toEqual(['Перемикач мережа-генератор'])
+    expect(marks[0].props('checked')).toBe(true)
   })
 })

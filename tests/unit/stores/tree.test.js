@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useTreeStore } from '@/modules/tree/stores/tree.js'
 import { useReferenceTablesStore } from '@/modules/reference/stores/referenceTables.js'
@@ -324,5 +324,201 @@ describe('tree store edits the consumer fields, one undo step each (002/FR-014, 
       await ReferenceTablesFileService.flush().catch(() => {})
       setFs(null)
     }
+  })
+})
+
+describe('the tree store gives new nodes the 003 keys (003/FR-003, 003/FR-009)', () => {
+  const steps = (store) => store.history.undoStack.length
+  /** The shipped incoming device rows as a new panel copies them: each marked not to install. */
+  const shippedCopies = () => {
+    const rows = useReferenceTablesStore().tables.incomingDevices
+    expect(rows).toHaveLength(4)
+    return rows.map((row) => ({ ...row, install: false }))
+  }
+
+  it('reset gives the entry all six project properties, empty', () => {
+    const store = useTreeStore()
+    store.setTree(loadedProject())
+    store.reset()
+    expect(store.nodes[store.rootId].projectProperties).toEqual({
+      supplyPhases: null,
+      moduleReservePct: null,
+      separateRcdMode: null,
+      maxLinesPerGroupRcd: null,
+      neutralBreak: null,
+      selectiveFeederRcd: null,
+    })
+  })
+
+  it('add gives a new panel a copy of the reference store’s incoming device rows, in one step', () => {
+    const store = useTreeStore()
+    store.setTree(loadedProject())
+    const before = steps(store)
+    const nodeId = store.add({ parentId: 'root', kind: 'panel', name: 'Гараж' })
+    expect(store.nodes[nodeId].incomingDevices).toEqual(shippedCopies())
+    expect(steps(store)).toBe(before + 1)
+  })
+
+  it('wrapConsumersAndAdd gives both new panels the same copy, in one step', () => {
+    const store = useTreeStore()
+    store.setTree(
+      tree({
+        id: 'root',
+        kind: 'entry',
+        name: 'Ввід',
+        children: [{ id: 'p1', kind: 'panel', name: 'Кухня', children: [consumer('c1')] }],
+      }),
+    )
+    const before = steps(store)
+    const nodeId = store.wrapConsumersAndAdd({
+      parentId: 'p1',
+      panelName: 'Освітлення',
+      pending: { kind: 'panel', name: 'Розетки' },
+    })
+    const wrapId = store.nodes.p1.childIds.find((id) => id !== nodeId)
+    expect(store.nodes[wrapId].incomingDevices).toEqual(shippedCopies())
+    expect(store.nodes[nodeId].incomingDevices).toEqual(shippedCopies())
+    expect(steps(store)).toBe(before + 1)
+  })
+})
+
+describe('tree store setProjectProperty is one undo step (003/FR-021, US1 scenario 5)', () => {
+  const steps = (store) => store.history.undoStack.length
+  const reserve = (store) => store.nodes[store.rootId].projectProperties.moduleReservePct
+
+  it('commits one step', () => {
+    const store = useTreeStore()
+    store.setTree(loadedProject())
+    const before = steps(store)
+
+    store.setProjectProperty('moduleReservePct', 20)
+
+    expect(reserve(store)).toBe(20)
+    expect(steps(store)).toBe(before + 1)
+  })
+
+  it('adds no step for a refused value, and keeps the stored one', () => {
+    const store = useTreeStore()
+    store.setTree(loadedProject())
+    store.setProjectProperty('moduleReservePct', 20)
+    const before = steps(store)
+
+    expect(() => store.setProjectProperty('moduleReservePct', -5)).toThrow(RuleError)
+
+    expect(reserve(store)).toBe(20)
+    expect(steps(store)).toBe(before)
+  })
+
+  it('undo brings a cleared value back and redo clears it again', () => {
+    const store = useTreeStore()
+    store.setTree(loadedProject())
+    store.setProjectProperty('moduleReservePct', 25)
+    store.setProjectProperty('moduleReservePct', null)
+
+    store.history.undo()
+    expect(reserve(store)).toBe(25)
+    store.history.redo()
+    expect(reserve(store)).toBeNull()
+  })
+})
+
+describe('tree store setPanelOverride is one undo step (003/FR-021, US2 scenario 3)', () => {
+  const steps = (store) => store.history.undoStack.length
+  const own = (store) => store.nodes.p1.overrides.moduleReservePct
+
+  it('commits one step', () => {
+    const store = useTreeStore()
+    store.setTree(loadedProject())
+    const before = steps(store)
+
+    store.setPanelOverride('p1', 'moduleReservePct', 40)
+
+    expect(own(store)).toBe(40)
+    expect(steps(store)).toBe(before + 1)
+  })
+
+  it('undo after a reset brings the own value back', () => {
+    const store = useTreeStore()
+    store.setTree(loadedProject())
+    store.setPanelOverride('p1', 'moduleReservePct', 40)
+    store.setPanelOverride('p1', 'moduleReservePct', null)
+
+    store.history.undo()
+
+    expect(own(store)).toBe(40)
+  })
+})
+
+describe('tree store marks (003/FR-009, 003/FR-021, 003/SC-006, US3 scenarios 4–5)', () => {
+  const steps = (store) => store.history.undoStack.length
+  const names = (rows) => rows.map((row) => row.name)
+
+  it('each mark change is one undo step', () => {
+    const store = useTreeStore()
+    store.setTree(loadedProject())
+    const floorId = store.add({ parentId: 'root', kind: 'panel', name: 'Поверх 1' })
+    const deviceId = store.nodes[floorId].incomingDevices[0].id
+    const before = steps(store)
+
+    store.setIncomingDeviceMark(floorId, deviceId, true)
+    store.setBuySeparately(floorId, 'blankingPlates', true)
+    expect(steps(store)).toBe(before + 2)
+
+    store.history.undo()
+    expect(store.nodes[floorId].buySeparately.blankingPlates).toBe(false)
+    expect(store.nodes[floorId].incomingDevices[0].install).toBe(true)
+    store.history.undo()
+    expect(store.nodes[floorId].incomingDevices[0].install).toBe(false)
+  })
+
+  describe('after edits of the incoming devices table', () => {
+    /** Adds «Перемикач мережа-генератор», renames and widens «Лічильник», then deletes it. */
+    async function editTable() {
+      const reference = useReferenceTablesStore()
+      const meter = reference.tables.incomingDevices.find((row) => row.name === 'Лічильник')
+      await reference.addRow('incomingDevices', 'Перемикач мережа-генератор')
+      await reference.updateCell('incomingDevices', meter.id, 'name', 'Лічильник двотарифний')
+      await reference.updateCell('incomingDevices', meter.id, 'width1ph', '3')
+      await reference.deleteRow('incomingDevices', meter.id)
+    }
+
+    beforeEach(() => {
+      setFs(new MemoryFs({ dataDir: '/memfs/data' }))
+    })
+
+    afterEach(async () => {
+      await ReferenceTablesFileService.flush().catch(() => {})
+      setFs(null)
+    })
+
+    it('an existing panel keeps its copy as it was', async () => {
+      const store = useTreeStore()
+      store.setTree(loadedProject())
+      const floorId = store.add({ parentId: 'root', kind: 'panel', name: 'Поверх 1' })
+      store.setIncomingDeviceMark(floorId, store.nodes[floorId].incomingDevices[2].id, true)
+      const copied = structuredClone(store.nodes[floorId].incomingDevices)
+
+      await editTable()
+
+      expect(store.nodes[floorId].incomingDevices).toEqual(copied)
+    })
+
+    it('a panel added afterwards copies the table as it now is', async () => {
+      const store = useTreeStore()
+      store.setTree(loadedProject())
+
+      await editTable()
+      const floorId = store.add({ parentId: 'root', kind: 'panel', name: 'Поверх 2' })
+
+      expect(names(store.nodes[floorId].incomingDevices)).toEqual([
+        'Реле напруги',
+        'ОПН',
+        'Рубильник',
+        'Перемикач мережа-генератор',
+      ])
+      expect(store.nodes[floorId].incomingDevices).toEqual(
+        useReferenceTablesStore().tables.incomingDevices.map((row) => ({ ...row, install: false })),
+      )
+    })
   })
 })

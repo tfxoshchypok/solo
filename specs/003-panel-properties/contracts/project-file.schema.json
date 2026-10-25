@@ -1,0 +1,639 @@
+{
+  "$id": "https://eltree.local/schemas/project-file.schema.json",
+  "title": "Electrical consumer tree project file (.eltree.json)",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "modifiedAt": {
+      "type": "string"
+    },
+    "rootId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "kind": {
+                "const": "entry"
+              },
+              "parentId": {
+                "type": "null"
+              },
+              "childIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "childrenKind": {
+                "enum": [
+                  "undecided",
+                  "panels",
+                  "consumers"
+                ],
+                "type": "string"
+              },
+              "projectProperties": {
+                "type": "object",
+                "properties": {
+                  "supplyPhases": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          1,
+                          3
+                        ],
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "moduleReservePct": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "separateRcdMode": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "rcbo",
+                          "mcbRcd"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "maxLinesPerGroupRcd": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "neutralBreak": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "selectiveFeederRcd": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "supplyPhases",
+                  "moduleReservePct",
+                  "separateRcdMode",
+                  "maxLinesPerGroupRcd",
+                  "neutralBreak",
+                  "selectiveFeederRcd"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "kind",
+              "parentId",
+              "childIds",
+              "childrenKind",
+              "projectProperties"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "kind": {
+                "const": "panel"
+              },
+              "parentId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "childIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "childrenKind": {
+                "enum": [
+                  "undecided",
+                  "panels",
+                  "consumers"
+                ],
+                "type": "string"
+              },
+              "overrides": {
+                "type": "object",
+                "properties": {
+                  "moduleReservePct": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "separateRcdMode": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "rcbo",
+                          "mcbRcd"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "maxLinesPerGroupRcd": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "neutralBreak": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "selectiveFeederRcd": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "moduleReservePct",
+                  "separateRcdMode",
+                  "maxLinesPerGroupRcd",
+                  "neutralBreak",
+                  "selectiveFeederRcd"
+                ]
+              },
+              "incomingDevices": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "width1ph": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "width3ph": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "install": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "width1ph",
+                    "width3ph",
+                    "install"
+                  ]
+                }
+              },
+              "buySeparately": {
+                "type": "object",
+                "properties": {
+                  "neutralBars": {
+                    "type": "boolean"
+                  },
+                  "peBar": {
+                    "type": "boolean"
+                  },
+                  "combBusbars": {
+                    "type": "boolean"
+                  },
+                  "cableGlands": {
+                    "type": "boolean"
+                  },
+                  "blankingPlates": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "neutralBars",
+                  "peBar",
+                  "combBusbars",
+                  "cableGlands",
+                  "blankingPlates"
+                ]
+              },
+              "calculated": {
+                "type": "object",
+                "properties": {
+                  "enclosure": {
+                    "type": "null"
+                  },
+                  "deviceComposition": {
+                    "type": "null"
+                  },
+                  "accessoryQuantities": {
+                    "type": "null"
+                  },
+                  "groupRcd": {
+                    "type": "null"
+                  },
+                  "phase": {
+                    "type": "null"
+                  }
+                },
+                "required": [
+                  "enclosure",
+                  "deviceComposition",
+                  "accessoryQuantities",
+                  "groupRcd",
+                  "phase"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "kind",
+              "parentId",
+              "childIds",
+              "childrenKind",
+              "overrides",
+              "incomingDevices",
+              "buySeparately",
+              "calculated"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "kind": {
+                "const": "consumer"
+              },
+              "parentId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "childIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "maxItems": 0
+              },
+              "loadType": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "ratedPowerKw": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "phases": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "breakerCurve": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "continuous": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "powerFactor": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "demandFactor": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "rcdType": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "ratedPowerKw",
+                  "phases",
+                  "breakerCurve",
+                  "continuous",
+                  "powerFactor",
+                  "demandFactor",
+                  "rcdType"
+                ]
+              },
+              "zone": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "rcdRequired": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "leakageMa": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "minIp": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "separateRcd": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "purpose": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "rcdRequired",
+                  "leakageMa",
+                  "minIp",
+                  "separateRcd",
+                  "purpose"
+                ]
+              },
+              "cableSectionMm2": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "calculated": {
+                "type": "object",
+                "properties": {
+                  "groupRcd": {
+                    "type": "null"
+                  },
+                  "phase": {
+                    "type": "null"
+                  }
+                },
+                "required": [
+                  "groupRcd",
+                  "phase"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "kind",
+              "parentId",
+              "childIds",
+              "loadType",
+              "zone",
+              "cableSectionMm2",
+              "calculated"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "name",
+    "createdAt",
+    "modifiedAt",
+    "rootId",
+    "nodes"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

@@ -9,8 +9,9 @@ import { computed, h, ref } from 'vue'
 import { NButton, NDataTable, NIcon, NInput, useMessage } from 'naive-ui'
 import { TrashOutline } from '@vicons/ionicons5'
 import { useConfirm } from '@/composables/useConfirm.js'
+import { REFERENCE_TABLES } from '@/schemas/index.js'
 import { columns, tableTitles } from '../config/columns.js'
-import { TableRuleError } from '../engine/tableOps.js'
+import { rowLabel, TableRuleError } from '../engine/tableOps.js'
 import { useReferenceTablesStore } from '../stores/referenceTables.js'
 import CellEditor from './CellEditor.vue'
 
@@ -18,7 +19,7 @@ const props = defineProps({
   table: {
     type: String,
     required: true,
-    validator: (value) => value === 'loadTypes' || value === 'zones',
+    validator: (value) => REFERENCE_TABLES.includes(value),
   },
 })
 
@@ -28,6 +29,8 @@ const confirm = useConfirm()
 
 const rows = computed(() => store.tables[props.table])
 
+/** The enclosure sizes have no name, so a new row is added without one (research R8). */
+const named = computed(() => columns[props.table].some((column) => column.kind === 'name'))
 const newName = ref('')
 
 function report(error) {
@@ -46,7 +49,7 @@ async function commit(row, column, input) {
 
 async function addRow() {
   try {
-    await store.addRow(props.table, newName.value)
+    await store.addRow(props.table, named.value ? newName.value : undefined)
     newName.value = ''
   } catch (error) {
     report(error)
@@ -57,7 +60,7 @@ async function removeRow(row) {
   const confirmed = await confirm({
     title: 'Видалити рядок?',
     content:
-      `Рядок «${row.name}» зникне з довідника «${tableTitles[props.table]}». ` +
+      `Рядок «${rowLabel(props.table, row)}» зникне з довідника «${tableTitles[props.table]}». ` +
       'Споживачі, яким його вже скопійовано, свої значення збережуть.',
   })
   if (!confirmed) return
@@ -107,6 +110,7 @@ const tableColumns = computed(() => [
   <div class="reference-table">
     <div class="reference-table-add">
       <n-input
+        v-if="named"
         v-model:value="newName"
         size="small"
         placeholder="Назва нового рядка"

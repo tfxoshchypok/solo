@@ -12,7 +12,9 @@
 - [`specs/001-electrical-load-tree-editor/`](specs/001-electrical-load-tree-editor/) — дерево,
   збереження й відкриття проекту; сценарії ручної перевірки V1–V4;
 - [`specs/002-reference-tables-consumer-fields/`](specs/002-reference-tables-consumer-fields/) —
-  довідники типів навантажень і зон, поля споживача; сценарії ручної перевірки Q1–Q5.
+  довідники типів навантажень і зон, поля споживача; сценарії ручної перевірки Q1–Q5;
+- [`specs/003-panel-properties/`](specs/003-panel-properties/) — властивості проекту й щитка, позначки
+  щитка, три нові довідники, порожні розрахункові поля; сценарії ручної перевірки Q1–Q5.
 
 У кожній: `spec.md` (вимоги), `plan.md` (стек і структура), `contracts/` (формати файлів і сигнатури
 сервісів), `quickstart.md` (сценарії ручної перевірки).
@@ -62,12 +64,13 @@ npm run schema:emit     # перегенерувати contracts/project-file.sc
 ```text
 src/
   modules/tree/          редактор дерева
-    engine/              чисті функції: treeOps.js, homogeneity.js — без Vue і без I/O
+    config/properties.js властивості проекту, комплектуючі, підписи розрахункових полів
+    engine/              чисті функції: treeOps.js, homogeneity.js, panelProperties.js — без Vue і без I/O
     stores/              tree.js (дерево, undo/redo)
     components/          TreeCanvas, NodeInspector, AddConsumerDialog, StructuralFixDialog
     views/TreeEditorView.vue
-  modules/reference/     розділ «Довідники»: типи навантажень і зони
-    config/columns.js    колонки обох таблиць під заголовками вихідного документа
+  modules/reference/     розділ «Довідники»: п'ять таблиць
+    config/columns.js    колонки й заголовки вкладок усіх п'яти таблиць
     engine/              чисті функції: tableOps.js, cells.js (розбір і показ клітинки)
     stores/              referenceTables.js (таблиці, правка, запис на диск)
     components/          ReferenceTable, CellEditor (редактор клітинки, спільний з інспектором)
@@ -75,7 +78,8 @@ src/
   services/              PathService, ProjectFileService, ReferenceTablesFileService, fs/ (адаптер)
   schemas/index.js       valibot: вузли, проект, рядки довідників — одна схема для форм і для файлу
   stores/                project.js (файл, dirty, відновлення), ui.js (тема, сайдбар)
-  data/referenceTables.builtin.json   вбудовані довідники: 33 типи навантажень і 8 зон
+  data/referenceTables.builtin.json   вбудовані довідники: 33 типи навантажень, 8 зон,
+                                      16 типорозмірів корпусів, 5 ширин за полюсністю, 4 ввідні апарати
 ```
 
 Напрямок залежностей не розвертається: views → stores → engines і services, engines не викликають
@@ -84,13 +88,18 @@ src/
 ## Файл проекту
 
 `.eltree.json` — один файл на проект, формат описано в
-[`contracts/project-file.md`](specs/002-reference-tables-consumer-fields/contracts/project-file.md), а
+[`contracts/project-file.md`](specs/003-panel-properties/contracts/project-file.md), а
 машинна форма схеми лежить поруч у `project-file.schema.json`.
 
 Кінцевий споживач зберігає назву, переріз кабелю `cableSectionMm2` і повні копії вибраних рядків
 довідників: `loadType` і `zone`, разом з їхніми `id`. Правка довідника споживачів не змінює, а при
 відкритті копії не звіряються з місцевими таблицями, тож проект з іншої установки відкривається зі
 своїми значеннями.
+
+Ввід зберігає шість властивостей проекту в `projectProperties`. Щиток зберігає власні значення тих із
+них, що перекриваються, в `overrides` (`null` — успадковує від проекту), свою копію ввідних апаратів
+`incomingDevices` з позначкою `install` на кожному, позначки «купувати окремо» `buySeparately` і
+порожні розрахункові поля `calculated`. Споживач теж має `calculated` — групове ПЗВ і фазу.
 
 Збереження атомарне: спершу пишеться `<path>.tmp`, потім один `move` на місце файлу, тож аварія
 посеред запису не залишає обрізаного проекту.

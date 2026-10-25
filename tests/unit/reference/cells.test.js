@@ -101,3 +101,22 @@ describe('parseCell (002/FR-006, 002/FR-021)', () => {
     expect(parseCell('yesno', null)).toBeNull()
   })
 })
+
+// The two number kinds of the 003 tables share the number parser (003/FR-017).
+describe('parseCell / formatCell for count and positive cells (003/FR-017)', () => {
+  it('reads «2» in a count cell as 2, and «2,5» in a positive cell as 2.5', () => {
+    expect(parseCell('count', '2')).toBe(2)
+    expect(parseCell('positive', '2,5')).toBe(2.5)
+  })
+
+  it('refuses «abc» in a count cell with notANumber', () => {
+    const error = refusalOf(() => parseCell('count', 'abc'))
+    expect(error).toBeInstanceOf(TableRuleError)
+    expect(error.code).toBe('notANumber')
+  })
+
+  it('shows 14 as «14», and an empty cell as empty', () => {
+    expect(formatCell('count', 14)).toBe('14')
+    expect(formatCell('count', null)).toBe('')
+  })
+})

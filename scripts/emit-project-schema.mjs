@@ -15,7 +15,7 @@ import { ProjectSchema } from '../src/schemas/index.js'
 const here = dirname(fileURLToPath(import.meta.url))
 export const OUTPUT_PATH = resolve(
   here,
-  '../specs/002-reference-tables-consumer-fields/contracts/project-file.schema.json',
+  '../specs/003-panel-properties/contracts/project-file.schema.json',
 )
 
 /**

@@ -124,6 +124,7 @@ describe('AddConsumerDialog asks for a load type and a zone (002/FR-012, 002/FR-
       loadType: sockets,
       zone: kitchen,
       cableSectionMm2: null,
+      calculated: { groupRcd: null, phase: null },
     })
     expect(wrapper.emitted('placed')?.[0]?.[0]).toBe(childId)
   })

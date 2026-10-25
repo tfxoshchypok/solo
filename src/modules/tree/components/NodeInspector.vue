@@ -4,10 +4,26 @@
 // and below them, as a group of their own, the copies of its load type and zone rows (002/FR-022).
 // Each select shows the copied name whatever the table now says, and choosing a row copies it afresh;
 // each copied value is edited on this consumer only (002/FR-015, 002/FR-021, research R14, R17).
+// Below name and note, the entry edits the six project properties, and a panel shows the five it may
+// override, inherited ones empty with the project's value in grey and the mark «з проекту» (003/FR-002,
+// 003/FR-005, 003 research R10, R11).
 import { computed, nextTick, ref, watch } from 'vue'
-import { NEmpty, NForm, NFormItem, NInput, NSelect, NTag, useMessage, useThemeVars } from 'naive-ui'
+import {
+  NButton,
+  NCheckbox,
+  NEmpty,
+  NForm,
+  NFormItem,
+  NInput,
+  NSelect,
+  NTag,
+  useMessage,
+  useThemeVars,
+} from 'naive-ui'
 import { useTreeStore } from '../stores/tree.js'
 import { RuleError } from '../engine/treeOps.js'
+import { effectiveProperty, isInherited } from '../engine/panelProperties.js'
+import { ACCESSORIES, CALCULATED_LABELS, PROJECT_PROPERTIES } from '../config/properties.js'
 import { useReferenceTablesStore } from '@/modules/reference/stores/referenceTables.js'
 import { columns } from '@/modules/reference/config/columns.js'
 import { formatCell, parseCell, parseNumberCell } from '@/modules/reference/engine/cells.js'
@@ -149,6 +165,55 @@ function commitCopy(part, column, input) {
   }
 }
 
+/** The text the editor parses as the table does, then the engine checks against the property's rule. */
+function commitProjectProperty(property, input) {
+  try {
+    tree.setProjectProperty(property.key, parseCell(property.kind, input))
+  } catch (error) {
+    refused(error)
+  }
+}
+
+/** An empty commit gives `null`, as «Скинути» does: the panel inherits again (003/FR-006). */
+function commitPanelOverride(property, input) {
+  if (node.value?.kind !== 'panel') return
+  try {
+    tree.setPanelOverride(node.value.id, property.key, parseCell(property.kind, input))
+  } catch (error) {
+    refused(error)
+  }
+}
+
+const OVERRIDABLE = PROJECT_PROPERTIES.filter((property) => property.overridable)
+
+/**
+ * The «Розрахунок» fields: a panel's own three, then the line pair for a consumer or a panel under a
+ * panel (003/FR-011, 003/FR-012). Computed from the parent, so a move of the selected panel shows
+ * the pair at once.
+ */
+const calculatedKeys = computed(() => {
+  const current = node.value
+  if (!current || current.kind === 'entry') return []
+  const keys =
+    current.kind === 'panel' ? ['enclosure', 'deviceComposition', 'accessoryQuantities'] : []
+  if (current.kind === 'consumer' || tree.nodes[current.parentId]?.kind === 'panel') {
+    keys.push('groupRcd', 'phase')
+  }
+  return keys
+})
+
+const inherited = (property) => isInherited(tree.nodes, node.value.id, property.key)
+
+/** What the panel shows for an inherited property: the project's value as the user reads it. */
+function inheritedLabel(property) {
+  if (!inherited(property)) return ''
+  const value = effectiveProperty(tree.nodes, tree.rootId, node.value.id, property.key)
+  if (property.kind === 'choice') {
+    return property.options.find((option) => option.value === value)?.label ?? ''
+  }
+  return formatCell(property.kind, value)
+}
+
 /** Empty means no cable yet (`null`); `2,5` and `2.5` are both 2.5 mm² (002/FR-011). */
 function commitSection() {
   if (node.value?.kind !== 'consumer') return
@@ -210,6 +275,99 @@ function commitSection() {
         </n-form-item>
       </div>
 
+      <div v-if="node.kind === 'entry'" data-project-properties class="properties-group">
+        <div class="group-caption" :style="muted">Властивості проекту</div>
+        <n-form-item
+          v-for="property in PROJECT_PROPERTIES"
+          :key="property.key"
+          :label="property.label"
+          :data-property="property.key"
+        >
+          <cell-editor
+            :kind="property.kind"
+            :value="node.projectProperties[property.key]"
+            :options="property.options"
+            placeholder=""
+            @commit="(input) => commitProjectProperty(property, input)"
+          />
+        </n-form-item>
+      </div>
+
+      <!-- Keyed by the node, so a half-typed value never carries over to the next panel. -->
+      <div
+        v-if="node.kind === 'panel'"
+        :key="node.id"
+        data-panel-properties
+        class="properties-group"
+      >
+        <div class="group-caption" :style="muted">Властивості щитка</div>
+        <n-form-item
+          v-for="property in OVERRIDABLE"
+          :key="property.key"
+          :label="property.label"
+          :data-property="property.key"
+        >
+          <template #label>
+            <span class="property-label">
+              {{ property.label }}
+              <n-tag v-if="inherited(property)" data-inherited size="small" :bordered="false">
+                з проекту
+              </n-tag>
+            </span>
+          </template>
+          <!-- «Скинути» sits beside the editor: inside the label a click on the label's text would press it. -->
+          <div class="override-row">
+            <cell-editor
+              :kind="property.kind"
+              :value="node.overrides[property.key]"
+              :options="property.options"
+              :placeholder="inheritedLabel(property)"
+              @commit="(input) => commitPanelOverride(property, input)"
+            />
+            <n-button
+              v-if="!inherited(property)"
+              data-reset
+              text
+              size="small"
+              @click="commitPanelOverride(property, null)"
+            >
+              Скинути
+            </n-button>
+          </div>
+        </n-form-item>
+      </div>
+
+      <!-- Each panel's own copy of the incoming devices, so a table edit never relabels a mark. -->
+      <div v-if="node.kind === 'panel'" data-install-marks class="properties-group">
+        <div class="group-caption" :style="muted">Встановлювати</div>
+        <div class="marks">
+          <n-checkbox
+            v-for="device in node.incomingDevices"
+            :key="device.id"
+            :data-device="device.id"
+            :checked="device.install"
+            @update:checked="(checked) => tree.setIncomingDeviceMark(node.id, device.id, checked)"
+          >
+            {{ device.name }}
+          </n-checkbox>
+        </div>
+      </div>
+
+      <div v-if="node.kind === 'panel'" data-buy-marks class="properties-group">
+        <div class="group-caption" :style="muted">Купувати окремо</div>
+        <div class="marks">
+          <n-checkbox
+            v-for="accessory in ACCESSORIES"
+            :key="accessory.key"
+            :data-accessory="accessory.key"
+            :checked="node.buySeparately[accessory.key]"
+            @update:checked="(checked) => tree.setBuySeparately(node.id, accessory.key, checked)"
+          >
+            {{ accessory.label }}
+          </n-checkbox>
+        </div>
+      </div>
+
       <!-- Keyed by the node, so a half-typed copied value never carries over to the next consumer. -->
       <div
         v-if="node.kind === 'consumer'"
@@ -253,6 +411,14 @@ function commitSection() {
           </div>
         </section>
       </div>
+
+      <!-- Last for a panel, after the copy group for a consumer; nothing fills these yet. -->
+      <div v-if="calculatedKeys.length" data-calculated class="properties-group">
+        <div class="group-caption" :style="muted">Розрахунок</div>
+        <n-form-item v-for="key in calculatedKeys" :key="key" :label="CALCULATED_LABELS[key]">
+          <n-input :value="node.calculated[key]" disabled placeholder="" />
+        </n-form-item>
+      </div>
     </n-form>
   </div>
 </template>
@@ -267,6 +433,40 @@ function commitSection() {
   align-items: center;
   gap: 8px;
   margin-bottom: var(--app-gutter);
+  min-width: 0;
+}
+
+.properties-group {
+  margin-top: 4px;
+}
+
+.group-caption {
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.marks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.property-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.override-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.override-row > :first-child {
+  flex: 1;
   min-width: 0;
 }
 

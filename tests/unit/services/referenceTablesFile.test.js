@@ -181,6 +181,32 @@ describe('load — a stored file that cannot be used is refused whole (002/FR-00
         return writeStored({ schemaVersion: 1, ...tables })
       },
     },
+    {
+      title: 'a feature 002 file, which lacks the three new tables (003/FR-018, research R9)',
+      path: 'enclosureSizes',
+      setup: () => {
+        const { loadTypes, zones } = shipped()
+        return writeStored({ schemaVersion: 1, loadTypes, zones })
+      },
+    },
+    {
+      title: 'a device width named as another row (003/FR-018)',
+      path: 'deviceWidths[3].name',
+      setup: () => {
+        const tables = shipped()
+        tables.deviceWidths[3].name = tables.deviceWidths[1].name.toLowerCase()
+        return writeStored({ schemaVersion: 1, ...tables })
+      },
+    },
+    {
+      title: 'an enclosure size with another row’s id (003/FR-018)',
+      path: 'enclosureSizes[9].id',
+      setup: () => {
+        const tables = shipped()
+        tables.enclosureSizes[9].id = tables.enclosureSizes[4].id
+        return writeStored({ schemaVersion: 1, ...tables })
+      },
+    },
   ]
 
   for (const { title, path, setup } of cases) {
@@ -277,5 +303,46 @@ describe('save — every accepted edit, at once (002/FR-007, research R4)', () =
     await ReferenceTablesFileService.save(next)
 
     expect((await readStored()).zones[0].name).toBe('Записано')
+  })
+})
+
+describe('the stored set holds all five tables (003/FR-018)', () => {
+  const FIVE = ['loadTypes', 'zones', 'enclosureSizes', 'deviceWidths', 'incomingDevices']
+
+  it('loads a stored file with all five tables', async () => {
+    const edited = shipped()
+    edited.enclosureSizes[0].rowCount = 2
+    edited.deviceWidths[0].widthModules = 1.5
+    edited.incomingDevices[2].width1ph = 5
+    await writeStored({ schemaVersion: REFERENCE_TABLES_VERSION, ...edited })
+
+    const result = await ReferenceTablesFileService.load({ now: NOW })
+
+    expect(result.source).toBe('stored')
+    expect(result.refusal).toBeUndefined()
+    expect(Object.keys(result.tables).sort()).toEqual([...FIVE].sort())
+    expect(result.tables).toEqual(edited)
+  })
+
+  it('accepts two enclosure sizes of equal values, which have no name to repeat (research R8)', async () => {
+    const tables = shipped()
+    tables.enclosureSizes[2] = { ...tables.enclosureSizes[1] }
+    tables.enclosureSizes[2].id = 'es-00000000-0000-4000-8000-000000000002'
+    expect(tables.enclosureSizes[1]).toMatchObject({ rowModularity: 12, rowCount: 2 })
+    expect(tables.enclosureSizes[2]).toMatchObject({ rowModularity: 12, rowCount: 2 })
+    await writeStored({ schemaVersion: REFERENCE_TABLES_VERSION, ...tables })
+
+    const result = await ReferenceTablesFileService.load({ now: NOW })
+
+    expect(result.source).toBe('stored')
+    expect(result.tables).toEqual(tables)
+  })
+
+  it('writes all five arrays on save', async () => {
+    await ReferenceTablesFileService.save(shipped())
+
+    const file = await readStored()
+    expect(Object.keys(file).sort()).toEqual(['schemaVersion', ...FIVE].sort())
+    for (const table of FIVE) expect(file[table], table).toEqual(shipped()[table])
   })
 })

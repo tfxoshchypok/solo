@@ -173,3 +173,34 @@ describe('a stored tables file that cannot be used, at startup (002/FR-007; scen
     expect(names).toEqual(ReferenceTablesFileService.loadBuiltin().zones.map((zone) => zone.name))
   })
 })
+
+describe('the section shows the five tables (003/FR-013)', () => {
+  /** Each tab's title, and the header of its table's first column. */
+  const TABS = [
+    ['Типи навантажень', 'Назва типу'],
+    ['Зони', 'Назва зони'],
+    ['Типорозміри корпусів', 'Модульність ряду'],
+    ['Ширина за полюсністю', 'Полюсність'],
+    ['Ввідні апарати', 'Апарат'],
+  ]
+  const tab = (title) => wrapper.findAll('.n-tabs-tab').find((t) => t.text().trim() === title)
+  const firstHeader = () =>
+    wrapper
+      .findAll('.n-tab-pane thead th')
+      .map((th) => th.text().trim())
+      .find(Boolean)
+
+  it('offers five tabs, and each shows its table', async () => {
+    await mountShell()
+    await go('/reference')
+
+    expect(wrapper.findAll('.n-tabs-tab').map((t) => t.text().trim())).toEqual(
+      TABS.map(([title]) => title),
+    )
+    for (const [title, header] of TABS) {
+      await tab(title).trigger('click')
+      await flushPromises()
+      expect(firstHeader(), title).toBe(header)
+    }
+  })
+})

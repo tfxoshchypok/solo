@@ -27,16 +27,16 @@ export function parseTextCell(text) {
 /**
  * Text typed into a cell becomes the value its kind stores; anything already parsed passes through.
  * The table and the consumer's copy both parse here, so they refuse the same input (research R16).
- * @param {'name'|'text'|'number'|'yesno'|undefined} kind
+ * @param {'name'|'text'|'number'|'count'|'positive'|'yesno'|undefined} kind
  */
 export function parseCell(kind, input) {
   if (typeof input !== 'string') return input
-  if (kind === 'number') return parseNumberCell(input)
+  if (kind === 'number' || kind === 'count' || kind === 'positive') return parseNumberCell(input)
   if (kind === 'text') return parseTextCell(input)
   return input
 }
 
-/** @param {'name'|'text'|'number'|'yesno'} kind */
+/** @param {'name'|'text'|'number'|'count'|'positive'|'yesno'} kind */
 export function formatCell(kind, value) {
   if (value === null || value === undefined) return ''
   if (kind === 'yesno') return value ? 'так' : 'ні'

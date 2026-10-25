@@ -232,3 +232,83 @@ describe('adding and deleting rows (002/FR-004; scenarios 3–4)', () => {
     expect(store.tables).toBe(before)
   })
 })
+
+describe('the three 003 tables (003/FR-013, 003/FR-016, 003/FR-017; User Story 4, scenarios 1–4)', () => {
+  const headers = () =>
+    wrapper
+      .findAll('thead th')
+      .map((th) => th.text().trim())
+      .filter(Boolean)
+
+  describe('enclosure sizes', () => {
+    it('shows «Модульність ряду» and «Кількість рядів», with 16 rows', () => {
+      mountTable('enclosureSizes')
+      expect(headers()).toEqual(['Модульність ряду', 'Кількість рядів'])
+      expect(rows()).toHaveLength(16)
+    })
+
+    it('has no name field, and «Додати рядок» appends an empty row', async () => {
+      const store = mountTable('enclosureSizes')
+      expect(wrapper.find('input[data-add-name]').exists()).toBe(false)
+
+      await button('Додати рядок').trigger('click')
+      await flushPromises()
+
+      expect(rows()).toHaveLength(17)
+      expect(store.tables.enclosureSizes.at(-1)).toMatchObject({
+        rowModularity: null,
+        rowCount: null,
+      })
+      expect(cellOf(rows().at(-1), 'rowModularity').element.value).toBe('')
+      expect(cellOf(rows().at(-1), 'rowCount').element.value).toBe('')
+    })
+
+    it('refuses 0 in «Кількість рядів» with a warning, and puts the stored value back', async () => {
+      const store = mountTable('enclosureSizes')
+      const before = store.tables
+
+      await commit(cellOf(rows()[0], 'rowCount'), '0')
+
+      expect(warningShown()).toBe(true)
+      expect(cellOf(rows()[0], 'rowCount').element.value).toBe('1')
+      expect(store.tables).toBe(before)
+    })
+
+    it('asks before deleting a row, naming it «12 × 1»', async () => {
+      mountTable('enclosureSizes')
+
+      await deleteButtonOf(rows()[0]).trigger('click')
+      await flushPromises()
+
+      expect(dialog()?.textContent).toContain('«12 × 1»')
+    })
+  })
+
+  it('shows the device widths with «Полюсність» and «Модулів», with 5 rows', () => {
+    mountTable('deviceWidths')
+    expect(headers()).toEqual(['Полюсність', 'Модулів'])
+    expect(rows()).toHaveLength(5)
+  })
+
+  it('shows the incoming devices with «Апарат», «1ф» and «3ф», with 4 rows, and refuses 0 in «1ф»', async () => {
+    const store = mountTable('incomingDevices')
+    expect(headers()).toEqual(['Апарат', '1ф', '3ф'])
+    expect(rows()).toHaveLength(4)
+    const before = store.tables
+
+    await commit(cellOf(rowNamed('Реле напруги'), 'width1ph'), '0')
+
+    expect(warningShown()).toBe(true)
+    expect(cellOf(rowNamed('Реле напруги'), 'width1ph').element.value).toBe('2')
+    expect(store.tables).toBe(before)
+  })
+
+  it('puts no row id of the three tables anywhere on the page', () => {
+    for (const table of ['enclosureSizes', 'deviceWidths', 'incomingDevices']) {
+      mountTable(table)
+      expect(document.body.innerHTML, table).not.toMatch(/\b(es|dw|iw)-[0-9a-f]{8}/)
+      wrapper.unmount()
+      document.body.innerHTML = ''
+    }
+  })
+})

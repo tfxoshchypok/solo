@@ -149,3 +149,47 @@ describe('edits (002/FR-004, 002/FR-007)', () => {
     expect(second.zoneById.has(ups.id)).toBe(false)
   })
 })
+
+describe('edits of the 003 tables (003/FR-016, 003/FR-018, 003/SC-002)', () => {
+  it('updateCell stores «5» typed into «1ф» as 5 and writes it', async () => {
+    const store = useReferenceTablesStore()
+    const relay = byName(store.tables.incomingDevices, 'Реле напруги')
+
+    await store.updateCell('incomingDevices', relay.id, 'width1ph', '5')
+
+    const row = byName(store.tables.incomingDevices, 'Реле напруги')
+    expect(row.width1ph).toBe(5)
+    expect(byName((await storedFile()).incomingDevices, 'Реле напруги')).toEqual(row)
+  })
+
+  it('writes an added enclosure size and a deleted device width', async () => {
+    const store = useReferenceTablesStore()
+    const twoPole = byName(store.tables.deviceWidths, '2P')
+
+    const rowId = await store.addRow('enclosureSizes')
+    await store.deleteRow('deviceWidths', twoPole.id)
+
+    const file = await storedFile()
+    expect(file.enclosureSizes.at(-1)).toEqual({ id: rowId, rowModularity: null, rowCount: null })
+    expect(file.deviceWidths.map((row) => row.id)).not.toContain(twoPole.id)
+  })
+
+  it('finds all three edits again after a restart', async () => {
+    const first = useReferenceTablesStore()
+    const relay = byName(first.tables.incomingDevices, 'Реле напруги')
+    const twoPole = byName(first.tables.deviceWidths, '2P')
+    await first.updateCell('incomingDevices', relay.id, 'width1ph', '5')
+    const rowId = await first.addRow('enclosureSizes')
+    await first.deleteRow('deviceWidths', twoPole.id)
+    await ReferenceTablesFileService.flush()
+
+    setActivePinia(createPinia())
+    const second = useReferenceTablesStore()
+    await second.load()
+
+    expect(second.tables).toEqual(first.tables)
+    expect(byName(second.tables.incomingDevices, 'Реле напруги').width1ph).toBe(5)
+    expect(second.tables.enclosureSizes.at(-1).id).toBe(rowId)
+    expect(second.tables.deviceWidths.map((row) => row.id)).not.toContain(twoPole.id)
+  })
+})

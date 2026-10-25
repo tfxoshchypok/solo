@@ -21,13 +21,48 @@ import {
   MAX_PANEL_DEPTH,
   RuleError,
 } from '@/modules/tree/engine/treeOps.js'
-import { tree, consumer, panelChain, loadTypeRow, zoneRow } from '../../fixtures/tree.js'
+import {
+  tree,
+  consumer,
+  panelChain,
+  loadTypeRow,
+  zoneRow,
+  incomingDeviceRow,
+} from '../../fixtures/tree.js'
 
 // Rows as the reference store holds them; the engine copies whatever row it is handed (002/FR-010).
 const lamp = loadTypeRow({ id: 'lt-lamp', name: 'Світильник' })
 const hall = zoneRow({ id: 'zn-hall', name: 'Коридор' })
 const fridge = loadTypeRow({ id: 'lt-fridge', name: 'Холодильник', ratedPowerKw: 0.3 })
 const kitchen = zoneRow({ id: 'zn-kitchen', name: 'Кухня', rcdRequired: true, leakageMa: 30 })
+const relay = incomingDeviceRow({ id: 'iw-relay', name: 'Реле напруги' })
+const meter = incomingDeviceRow({ id: 'iw-meter', name: 'Лічильник', width1ph: 6, width3ph: 8 })
+
+/** What a new panel holds beside its structure: nothing chosen, marked or calculated (003/FR-009). */
+const newPanelFields = (rows) => ({
+  overrides: {
+    moduleReservePct: null,
+    separateRcdMode: null,
+    maxLinesPerGroupRcd: null,
+    neutralBreak: null,
+    selectiveFeederRcd: null,
+  },
+  incomingDevices: rows.map((row) => ({ ...row, install: false })),
+  buySeparately: {
+    neutralBars: false,
+    peBar: false,
+    combBusbars: false,
+    cableGlands: false,
+    blankingPlates: false,
+  },
+  calculated: {
+    enclosure: null,
+    deviceComposition: null,
+    accessoryQuantities: null,
+    groupRcd: null,
+    phase: null,
+  },
+})
 
 const twoPanelsWithConsumers = () =>
   tree({
@@ -55,25 +90,32 @@ const twoPanelsWithConsumers = () =>
 describe('treeOps.addNode (FR-006)', () => {
   it('appends the new node to the parent and returns its id', () => {
     const { nodes } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
-    const result = addNode(nodes, { parentId: 'root', kind: 'panel', name: 'Щиток' })
+    const result = addNode(nodes, {
+      parentId: 'root',
+      kind: 'panel',
+      name: 'Щиток',
+      incomingDevices: [],
+    })
     expect(result.nodeId).toBeTypeOf('string')
     expect(result.nodes.root.childIds).toEqual([result.nodeId])
-    expect(result.nodes[result.nodeId]).toMatchObject({
+    expect(result.nodes[result.nodeId]).toEqual({
+      id: result.nodeId,
       kind: 'panel',
       name: 'Щиток',
       parentId: 'root',
       childIds: [],
       childrenKind: 'undecided',
+      ...newPanelFields([]),
     })
   })
 
   it('never mutates the map it was given', () => {
     const { nodes } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
-    addNode(nodes, { parentId: 'root', kind: 'panel', name: 'Щиток' })
+    addNode(nodes, { parentId: 'root', kind: 'panel', name: 'Щиток', incomingDevices: [] })
     expect(nodes.root.childIds).toEqual([])
   })
 
-  it('builds a consumer of exactly its field list, holding copies of both rows (002/FR-010, 002/FR-012)', () => {
+  it('builds a consumer of exactly its field list, holding copies of both rows (002/FR-010, 002/FR-012, 003/FR-012)', () => {
     const { nodes } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
     const { nodes: next, nodeId } = addNode(nodes, {
       parentId: 'root',
@@ -91,6 +133,7 @@ describe('treeOps.addNode (FR-006)', () => {
       loadType: fridge,
       zone: kitchen,
       cableSectionMm2: null,
+      calculated: { groupRcd: null, phase: null },
     })
     expect(next[nodeId].loadType).not.toBe(fridge)
     expect(next[nodeId].zone).not.toBe(kitchen)
@@ -133,7 +176,12 @@ describe('treeOps.addNode (FR-006)', () => {
     expect(depthOf(nodes, `p${MAX_PANEL_DEPTH}`)).toBe(MAX_PANEL_DEPTH)
     let thrown
     try {
-      addNode(nodes, { parentId: `p${MAX_PANEL_DEPTH}`, kind: 'panel', name: 'Задовго' })
+      addNode(nodes, {
+        parentId: `p${MAX_PANEL_DEPTH}`,
+        kind: 'panel',
+        name: 'Задовго',
+        incomingDevices: [],
+      })
     } catch (error) {
       thrown = error
     }
@@ -155,13 +203,54 @@ describe('treeOps.addNode (FR-006)', () => {
   })
 })
 
+describe('treeOps.addNode — a new panel takes the incoming device rows (003/FR-009, 003/FR-011, 003/FR-012)', () => {
+  const addPanel = (incomingDevices) => {
+    const { nodes } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
+    const { nodes: next, nodeId } = addNode(nodes, {
+      parentId: 'root',
+      kind: 'panel',
+      name: 'Гараж',
+      incomingDevices,
+    })
+    return next[nodeId]
+  }
+
+  it('copies every row with install: false, in table order, and leaves the rest empty', () => {
+    const panel = addPanel([relay, meter])
+    expect(panel).toEqual({
+      id: panel.id,
+      kind: 'panel',
+      name: 'Гараж',
+      parentId: 'root',
+      childIds: [],
+      childrenKind: 'undecided',
+      ...newPanelFields([relay, meter]),
+    })
+  })
+
+  it('holds copies, never the rows it was handed, and leaves those rows as they were', () => {
+    const panel = addPanel([relay, meter])
+    expect(panel.incomingDevices[0]).not.toBe(relay)
+    expect(panel.incomingDevices[1]).not.toBe(meter)
+    expect(relay).not.toHaveProperty('install')
+    expect(meter).not.toHaveProperty('install')
+  })
+
+  it('gives a panel no marks when the table is empty', () => {
+    expect(addPanel([]).incomingDevices).toEqual([])
+  })
+
+  it('refuses a panel requested without the rows', () => {
+    expect(refusalCode(() => addPanel(undefined))).toBe('incomingDevicesRequired')
+  })
+})
+
 describe('treeOps.addNode guards the fields the schema requires', () => {
   it('refuses a blank name on any kind, which ProjectSchema would reject at save time', () => {
     const { nodes, rootId } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
-    expect(() => addNode(nodes, { parentId: rootId, kind: 'panel', name: '' })).toThrow(RuleError)
-    expect(() => addNode(nodes, { parentId: rootId, kind: 'panel', name: '   ' })).toThrow(
-      RuleError,
-    )
+    const panel = (name) => ({ parentId: rootId, kind: 'panel', name, incomingDevices: [] })
+    expect(() => addNode(nodes, panel(''))).toThrow(RuleError)
+    expect(() => addNode(nodes, panel('   '))).toThrow(RuleError)
   })
 })
 
@@ -217,7 +306,12 @@ describe('treeOps.moveNode (FR-008, FR-009)', () => {
 
   it('inserts at the requested index among the new siblings', () => {
     const { nodes } = twoPanelsWithConsumers()
-    const withThird = addNode(nodes, { parentId: 'p1', kind: 'panel', name: 'Коридор' })
+    const withThird = addNode(nodes, {
+      parentId: 'p1',
+      kind: 'panel',
+      name: 'Коридор',
+      incomingDevices: [],
+    })
     const next = moveNode(withThird.nodes, withThird.nodeId, 'p1', 1)
     expect(next.p1.childIds).toEqual(['p2', withThird.nodeId, 'p3'])
   })
@@ -243,18 +337,29 @@ describe('treeOps.moveNode (FR-008, FR-009)', () => {
 
   it('accepts a move that lands the sub-tree exactly on the depth limit (FR-007)', () => {
     const { nodes } = panelChain(MAX_PANEL_DEPTH)
-    const spare = addNode(nodes, { parentId: 'root', kind: 'panel', name: 'Резерв' })
+    const spare = addNode(nodes, {
+      parentId: 'root',
+      kind: 'panel',
+      name: 'Резерв',
+      incomingDevices: [],
+    })
     const moved = moveNode(spare.nodes, spare.nodeId, `p${MAX_PANEL_DEPTH - 1}`, 0)
     expect(depthOf(moved, spare.nodeId)).toBe(MAX_PANEL_DEPTH)
   })
 
   it('rejects a move that would push the sub-tree’s own children past the limit (FR-007, FR-009)', () => {
     const { nodes } = panelChain(MAX_PANEL_DEPTH)
-    const spare = addNode(nodes, { parentId: 'root', kind: 'panel', name: 'Резерв' })
+    const spare = addNode(nodes, {
+      parentId: 'root',
+      kind: 'panel',
+      name: 'Резерв',
+      incomingDevices: [],
+    })
     const spareChild = addNode(spare.nodes, {
       parentId: spare.nodeId,
       kind: 'panel',
       name: 'Резерв — підщиток',
+      incomingDevices: [],
     })
     // The spare itself would land on the limit, but it carries a panel one level below it.
     let thrown
@@ -334,7 +439,7 @@ describe('treeOps.setNote (FR-012)', () => {
 describe('treeOps.wrapChildrenInPanel (FR-016)', () => {
   it('moves every existing child into a new panel, in one legal step', () => {
     const { nodes } = twoPanelsWithConsumers()
-    const { nodes: next, nodeId } = wrapChildrenInPanel(nodes, 'p2', 'Освітлення')
+    const { nodes: next, nodeId } = wrapChildrenInPanel(nodes, 'p2', 'Освітлення', [])
     expect(next.p2.childIds).toEqual([nodeId])
     expect(next.p2.childrenKind).toBe('panels')
     expect(next[nodeId].childIds).toEqual(['c1', 'c2'])
@@ -342,14 +447,29 @@ describe('treeOps.wrapChildrenInPanel (FR-016)', () => {
     expect(next.c1.parentId).toBe(nodeId)
   })
 
+  it('builds the new panel as addNode does, with copies of the rows it is handed (003/FR-009)', () => {
+    const { nodes } = twoPanelsWithConsumers()
+    const { nodes: next, nodeId } = wrapChildrenInPanel(nodes, 'p2', 'Освітлення', [relay, meter])
+    expect(next[nodeId]).toEqual({
+      id: nodeId,
+      kind: 'panel',
+      name: 'Освітлення',
+      parentId: 'p2',
+      childIds: ['c1', 'c2'],
+      childrenKind: 'consumers',
+      ...newPanelFields([relay, meter]),
+    })
+    expect(next[nodeId].incomingDevices[0]).not.toBe(relay)
+  })
+
   it('refuses to wrap when the panel already holds panels — there is nothing to fix', () => {
     const { nodes } = twoPanelsWithConsumers()
-    expect(() => wrapChildrenInPanel(nodes, 'p1', 'Нова група')).toThrow(RuleError)
+    expect(() => wrapChildrenInPanel(nodes, 'p1', 'Нова група', [])).toThrow(RuleError)
   })
 
   it('refuses to wrap an empty panel, which can take a panel child directly', () => {
     const { nodes } = tree({ id: 'root', kind: 'entry', name: 'Ввід', children: [] })
-    expect(() => wrapChildrenInPanel(nodes, 'root', 'Група')).toThrow(RuleError)
+    expect(() => wrapChildrenInPanel(nodes, 'root', 'Група', [])).toThrow(RuleError)
   })
 
   it('keeps the depth guard: wrapping adds a level (FR-007)', () => {
@@ -361,17 +481,18 @@ describe('treeOps.wrapChildrenInPanel (FR-016)', () => {
       loadType: lamp,
       zone: hall,
     }).nodes
-    expect(() => wrapChildrenInPanel(withConsumer, `p${MAX_PANEL_DEPTH}`, 'Група')).toThrow(
+    expect(() => wrapChildrenInPanel(withConsumer, `p${MAX_PANEL_DEPTH}`, 'Група', [])).toThrow(
       RuleError,
     )
   })
 })
 
-// The eight keys a consumer carries, and no more (002/FR-009). The load type and the zone are copies
-// of whole rows (002/FR-010).
+// The nine keys a consumer carries, and no more (002/FR-009, 003/FR-012). The load type and the zone
+// are copies of whole rows (002/FR-010).
 const CONSUMER_KEYS = [
   'childIds',
   'cableSectionMm2',
+  'calculated',
   'id',
   'kind',
   'loadType',
@@ -571,7 +692,7 @@ describe('treeOps.setCableSection (002/FR-011)', () => {
   })
 })
 
-describe('the consumer setters refuse a panel and keep the consumer at its eight keys (002/FR-009)', () => {
+describe('the consumer setters refuse a panel and keep the consumer at its nine keys (002/FR-009, 003/FR-012)', () => {
   it('refuses a panel in all four', () => {
     const { nodes } = kitchenWithOven()
     expect(refusalCode(() => setConsumerLoadType(nodes, 'p1', microwave))).toBe('notAConsumer')
@@ -582,7 +703,7 @@ describe('the consumer setters refuse a panel and keep the consumer at its eight
     ).toBe('notAConsumer')
   })
 
-  it('leaves the consumer at exactly its eight keys, and each copy at its row’s keys, so nothing computed is stored (002/FR-020)', () => {
+  it('leaves the consumer at exactly its nine keys, and each copy at its row’s keys, so nothing computed is stored (002/FR-020)', () => {
     const { nodes } = kitchenWithOven()
     const results = [
       setConsumerLoadType(nodes, 'oven', microwave),
@@ -644,7 +765,12 @@ describe('property: every returned map is frozen (FR-008, R5, R10)', () => {
             try {
               switch (step.op) {
                 case 'addPanel':
-                  next = addNode(nodes, { parentId, kind: 'panel', name: 'щиток' }).nodes
+                  next = addNode(nodes, {
+                    parentId,
+                    kind: 'panel',
+                    name: 'щиток',
+                    incomingDevices: [],
+                  }).nodes
                   break
                 case 'addConsumer':
                   next = addNode(nodes, {

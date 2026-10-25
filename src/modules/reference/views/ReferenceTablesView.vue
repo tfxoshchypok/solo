@@ -9,11 +9,13 @@ import { tableTitles } from '../config/columns.js'
 <template>
   <section class="reference-view">
     <n-tabs type="line" default-value="loadTypes">
-      <n-tab-pane name="loadTypes" :tab="tableTitles.loadTypes">
-        <ReferenceTable table="loadTypes" />
-      </n-tab-pane>
-      <n-tab-pane name="zones" :tab="tableTitles.zones">
-        <ReferenceTable table="zones" />
+      <n-tab-pane
+        v-for="table in Object.keys(tableTitles)"
+        :key="table"
+        :name="table"
+        :tab="tableTitles[table]"
+      >
+        <ReferenceTable :table="table" />
       </n-tab-pane>
     </n-tabs>
   </section>

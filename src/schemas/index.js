@@ -45,6 +45,87 @@ export const ZoneSchema = v.object({
   purpose: TextCell,
 })
 
+// ---------------------------------------------------------------- reference tables (feature 003)
+
+// Two more cell kinds (research R7): `count` is a whole number ≥ 1, `positive` a number > 0.
+const CountCell = v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1)))
+const PositiveCell = v.nullable(v.pipe(v.number(), v.finite(), v.gtValue(0)))
+
+/** A row of «Типорозміри корпусів» (003/FR-015). No name column, and equal rows are allowed (R8). */
+export const EnclosureSizeSchema = v.object({
+  id: Id,
+  rowModularity: CountCell,
+  rowCount: CountCell,
+})
+
+/** A row of «Ширина апаратів за полюсністю, модулів» (003/FR-013). */
+export const DeviceWidthSchema = v.object({
+  id: Id,
+  name: Name,
+  widthModules: PositiveCell,
+})
+
+/** A row of «Ширина опційних ввідних апаратів, модулів» (003/FR-013). */
+export const IncomingDeviceWidthSchema = v.object({
+  id: Id,
+  name: Name,
+  width1ph: PositiveCell,
+  width3ph: PositiveCell,
+})
+
+// ---------------------------------------------------------------- panel properties (feature 003)
+
+/**
+ * One nullable schema per project property (003/FR-001). `null` is an empty property on the entry
+ * and an inherited one in a panel's `overrides` (003/FR-004).
+ */
+export const PROJECT_PROPERTY_SCHEMAS = {
+  supplyPhases: v.nullable(v.picklist([1, 3])),
+  moduleReservePct: v.nullable(v.pipe(v.number(), v.finite(), v.minValue(0))),
+  separateRcdMode: v.nullable(v.picklist(['rcbo', 'mcbRcd'])),
+  maxLinesPerGroupRcd: v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1))),
+  neutralBreak: v.nullable(v.boolean()),
+  selectiveFeederRcd: v.nullable(v.boolean()),
+}
+
+/** All six on the entry, every key present (003/FR-003). */
+export const ProjectPropertiesSchema = v.object(PROJECT_PROPERTY_SCHEMAS)
+
+/** A panel's own values: the five that may be overridden, `supplyPhases` not among them (003/FR-004). */
+export const PanelOverridesSchema = v.object(
+  Object.fromEntries(
+    Object.entries(PROJECT_PROPERTY_SCHEMAS).filter(([key]) => key !== 'supplyPhases'),
+  ),
+)
+
+/** A whole copy of an incoming device row, taken when the panel is created, plus its mark (003/FR-009). */
+export const IncomingDeviceCopySchema = v.object({
+  ...IncomingDeviceWidthSchema.entries,
+  install: v.boolean(),
+})
+
+/** The «купувати окремо» marks, each `true` or `false` — never empty (003/FR-009). */
+export const BuySeparatelySchema = v.object({
+  neutralBars: v.boolean(),
+  peBar: v.boolean(),
+  combBusbars: v.boolean(),
+  cableGlands: v.boolean(),
+  blankingPlates: v.boolean(),
+})
+
+// Nothing in this feature computes a value, so each calculated field is `null` (research R6).
+const PanelCalculatedSchema = v.object({
+  enclosure: v.null(),
+  deviceComposition: v.null(),
+  accessoryQuantities: v.null(),
+  groupRcd: v.null(),
+  phase: v.null(),
+})
+const ConsumerCalculatedSchema = v.object({
+  groupRcd: v.null(),
+  phase: v.null(),
+})
+
 // ---------------------------------------------------------------- nodes (FR-003)
 
 const sharedNodeFields = {
@@ -60,6 +141,7 @@ export const EntryNodeSchema = v.object({
   parentId: v.null(),
   childIds: v.array(Id),
   childrenKind: ChildrenKindSchema,
+  projectProperties: ProjectPropertiesSchema,
 })
 
 export const PanelNodeSchema = v.object({
@@ -69,6 +151,10 @@ export const PanelNodeSchema = v.object({
   parentId: Id,
   childIds: v.array(Id),
   childrenKind: ChildrenKindSchema,
+  overrides: PanelOverridesSchema,
+  incomingDevices: v.array(IncomingDeviceCopySchema),
+  buySeparately: BuySeparatelySchema,
+  calculated: PanelCalculatedSchema,
 })
 
 /**
@@ -85,18 +171,37 @@ export const ConsumerNodeSchema = v.object({
   loadType: LoadTypeSchema,
   zone: ZoneSchema,
   cableSectionMm2: v.nullable(v.pipe(v.number(), v.finite(), v.gtValue(0))),
+  calculated: ConsumerCalculatedSchema,
 })
 
 export const NodeSchema = v.variant('kind', [EntryNodeSchema, PanelNodeSchema, ConsumerNodeSchema])
 
 // ---------------------------------------------------------------- reference tables file
 
-/** `reference-tables.json` and the bundled `referenceTables.builtin.json` (002/FR-007). */
+/**
+ * `reference-tables.json` and the bundled `referenceTables.builtin.json` (002/FR-007). A file
+ * without one of the five arrays is refused whole (003/FR-018).
+ */
 export const ReferenceTablesSchema = v.object({
   schemaVersion: v.literal(1),
   loadTypes: v.array(LoadTypeSchema),
   zones: v.array(ZoneSchema),
+  enclosureSizes: v.array(EnclosureSizeSchema),
+  deviceWidths: v.array(DeviceWidthSchema),
+  incomingDevices: v.array(IncomingDeviceWidthSchema),
 })
+
+/** Every reference table, in the order the file stores them and the «Довідники» section shows them. */
+export const REFERENCE_TABLES = [
+  'loadTypes',
+  'zones',
+  'enclosureSizes',
+  'deviceWidths',
+  'incomingDevices',
+]
+
+/** The tables whose rows carry a `name`, unique within the table (002/FR-005, 003/FR-017). */
+export const NAMED_TABLES = ['loadTypes', 'zones', 'deviceWidths', 'incomingDevices']
 
 /**
  * The key two row names are compared by. With the row id hidden from the user (002/FR-005), the name

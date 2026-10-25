@@ -6,9 +6,9 @@ import { readFileSync } from 'node:fs'
 import { buildJsonSchema, serialize, OUTPUT_PATH } from '../../../scripts/emit-project-schema.mjs'
 
 describe('contracts/project-file.schema.json', () => {
-  it('is the feature 002 contract', () => {
+  it('is the feature 003 contract', () => {
     expect(OUTPUT_PATH.replaceAll('\\', '/')).toMatch(
-      /specs\/002-reference-tables-consumer-fields\/contracts\/project-file\.schema\.json$/,
+      /specs\/003-panel-properties\/contracts\/project-file\.schema\.json$/,
     )
   })
 

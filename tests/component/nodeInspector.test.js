@@ -77,7 +77,6 @@ function mountWithConsumer(fields = {}) {
   return { tree, panelId, nodeId }
 }
 
-const labels = () => wrapper.findAllComponents(NFormItem).map((item) => item.props('label'))
 const fieldUnder = (label) => {
   const item = wrapper.findAllComponents(NFormItem).find((f) => f.props('label') === label)
   expect(item, `no field «${label}»`).toBeTruthy()
@@ -155,10 +154,8 @@ describe('NodeInspector edits the selected node in place (FR-029)', () => {
     const { tree, panelId } = mountWithConsumer()
     tree.select(panelId)
     await flushPromises()
-    const inputs = wrapper.findAllComponents(NInput)
-
     // The note commits on `change` for the same reason the name does: one edit, one undo step.
-    await inputs[inputs.length - 1].vm.$emit('change', 'окрема лінія')
+    await fieldUnder('Нотатка').findComponent(NInput).vm.$emit('change', 'окрема лінія')
 
     expect(tree.nodes[panelId].note).toBe('окрема лінія')
   })
@@ -201,17 +198,20 @@ describe('a consumer shows its own fields, then its copied rows as a group of th
     ])
   })
 
-  it('shows the entry and a panel with name and note, and no copied group', async () => {
+  // The properties groups of feature 003 follow them; tests/component/panelProperties.test.js
+  // covers those.
+  it('starts the entry and a panel with name and note, and shows no copied group', async () => {
     const { tree, panelId } = mountWithConsumer()
 
     tree.select(panelId)
     await flushPromises()
-    expect(labels()).toEqual(['Назва', 'Нотатка'])
+    expect(projectLabels().slice(0, 2)).toEqual(['Назва', 'Нотатка'])
     expect(copyGroup()).toBeNull()
 
     tree.select(tree.rootId)
     await flushPromises()
-    expect(labels()).toEqual(['Назва', 'Нотатка'])
+    expect(projectLabels().slice(0, 2)).toEqual(['Назва', 'Нотатка'])
+    expect(copyGroup()).toBeNull()
   })
 
   it('shows the copied names in the row selects and every copied value in its column’s format (002/FR-015)', () => {
@@ -414,8 +414,7 @@ describe('NodeInspector accepts typing before the edit is committed (FR-029)', (
     const { tree, panelId } = mountWithConsumer()
     tree.select(panelId)
     await flushPromises()
-    const inputs = wrapper.findAllComponents(NInput)
-    const noteInput = inputs[inputs.length - 1]
+    const noteInput = fieldUnder('Нотатка').findComponent(NInput)
 
     await noteInput.vm.$emit('update:value', 'окрема лінія')
 

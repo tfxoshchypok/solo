@@ -70,6 +70,46 @@ function copyOfRow(part, row) {
   return { ...row }
 }
 
+/**
+ * The fields a panel is created with, by `addNode` and `wrapChildrenInPanel` alike (003/FR-009): a
+ * copy of every incoming device row, unmarked, in table order; no own values, no «купувати окремо»
+ * marks and nothing calculated yet (003/FR-011). The copies are taken once, so a later edit of the
+ * table never reaches the panel.
+ * @param {object[]} incomingDevices the rows of the incoming device widths table
+ */
+function newPanelFields(incomingDevices) {
+  if (!Array.isArray(incomingDevices)) {
+    throw new RuleError({
+      code: 'incomingDevicesRequired',
+      message: 'Щиток створюється з довідника ввідних апаратів.',
+    })
+  }
+  return {
+    overrides: {
+      moduleReservePct: null,
+      separateRcdMode: null,
+      maxLinesPerGroupRcd: null,
+      neutralBreak: null,
+      selectiveFeederRcd: null,
+    },
+    incomingDevices: incomingDevices.map((row) => ({ ...row, install: false })),
+    buySeparately: {
+      neutralBars: false,
+      peBar: false,
+      combBusbars: false,
+      cableGlands: false,
+      blankingPlates: false,
+    },
+    calculated: {
+      enclosure: null,
+      deviceComposition: null,
+      accessoryQuantities: null,
+      groupRcd: null,
+      phase: null,
+    },
+  }
+}
+
 // Which table a copy came from, and the schema its values follow (002/FR-021 → 002/FR-006).
 const COPY_PARTS = {
   loadType: { table: 'loadTypes', schema: LoadTypeSchema },
@@ -168,9 +208,10 @@ function refreshChildrenKind(draft, parentId) {
 /**
  * @returns {{ nodes: object, nodeId: string }}
  * @throws {RuleError} homogeneity (FR-015), depth (FR-007), a consumer with no load type or no zone
- *   (002/FR-010), or the entry's protections (FR-002)
+ *   (002/FR-010), a panel with no incoming device rows (003/FR-009), or the entry's protections
+ *   (FR-002)
  */
-export function addNode(nodes, { parentId, kind, name, loadType, zone }) {
+export function addNode(nodes, { parentId, kind, name, loadType, zone, incomingDevices }) {
   require_(nodes, parentId)
 
   const verdict = canAccept(nodes, parentId, kind)
@@ -192,7 +233,7 @@ export function addNode(nodes, { parentId, kind, name, loadType, zone }) {
   const copies =
     kind === 'consumer'
       ? { loadType: copyOfRow('loadType', loadType), zone: copyOfRow('zone', zone) }
-      : null
+      : newPanelFields(incomingDevices)
 
   const landingDepth = depthOf(nodes, parentId) + 1
   if (kind === 'panel' && landingDepth > MAX_PANEL_DEPTH) refuseDepth(landingDepth)
@@ -210,8 +251,9 @@ export function addNode(nodes, { parentId, kind, name, loadType, zone }) {
             loadType: copies.loadType,
             zone: copies.zone,
             cableSectionMm2: null,
+            calculated: { groupRcd: null, phase: null },
           }
-        : { id: nodeId, kind, name, parentId, childIds: [], childrenKind: 'undecided' }
+        : { id: nodeId, kind, name, parentId, childIds: [], childrenKind: 'undecided', ...copies }
     draft[parentId].childIds.push(nodeId)
     refreshChildrenKind(draft, parentId)
   })
@@ -377,9 +419,11 @@ export function setCableSection(nodes, nodeId, mm2) {
  * — is illegal, and only the engine may construct it inside a single `produce` where nobody can
  * observe it.
  *
+ * The new panel is built as `addNode` builds one, with a copy of `incomingDevices` (003/FR-009).
+ *
  * @returns {{ nodes: object, nodeId: string }} the map and the id of the panel that was created
  */
-export function wrapChildrenInPanel(nodes, parentId, panelName) {
+export function wrapChildrenInPanel(nodes, parentId, panelName, incomingDevices) {
   const parent = require_(nodes, parentId)
 
   if (childrenKindAfter(nodes, parentId) !== 'consumers') {
@@ -396,6 +440,7 @@ export function wrapChildrenInPanel(nodes, parentId, panelName) {
       fix: 'Введіть назву.',
     })
   }
+  const panelFields = newPanelFields(incomingDevices)
 
   // The wrap pushes every consumer one level down, so the deepest one has to stay within reach.
   const landingDepth = depthOf(nodes, parentId) + 1
@@ -411,6 +456,7 @@ export function wrapChildrenInPanel(nodes, parentId, panelName) {
       parentId,
       childIds: moved,
       childrenKind: 'consumers',
+      ...panelFields,
     }
     draft[parentId].childIds = [nodeId]
     draft[parentId].childrenKind = 'panels'

@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useTreeStore } from '@/modules/tree/stores/tree.js'
 import { RuleError } from '@/modules/tree/engine/treeOps.js'
+import { useReferenceTablesStore } from '@/modules/reference/stores/referenceTables.js'
 import { tree, consumer } from '../../fixtures/tree.js'
 
 beforeEach(() => {
@@ -65,5 +66,23 @@ describe('wrapConsumersAndMove resolves a move-time block in one step (SC-002, F
       store.wrapConsumersAndMove({ parentId: 'kitchen', panelName: 'Група', nodeId: 'root' }),
     ).toThrow(RuleError)
     expect(store.nodes).toEqual(before)
+  })
+})
+
+describe('wrapConsumersAndMove builds the wrapper as any new panel (003/FR-009)', () => {
+  it('gives the wrapper a copy of the reference store’s incoming device rows, in one step', () => {
+    const rows = useReferenceTablesStore().tables.incomingDevices
+    expect(rows).toHaveLength(4)
+    const store = useTreeStore()
+    store.setTree(twoBranches())
+    const before = store.history.undoStack.length
+
+    store.wrapConsumersAndMove({ parentId: 'kitchen', panelName: 'Освітлення', nodeId: 'floor' })
+
+    const wrapperId = store.nodes.kitchen.childIds.find((id) => id !== 'floor')
+    expect(store.nodes[wrapperId].incomingDevices).toEqual(
+      rows.map((row) => ({ ...row, install: false })),
+    )
+    expect(store.history.undoStack.length).toBe(before + 1)
   })
 })
