@@ -527,7 +527,7 @@ and the file keeps them, which Phase 2 already does.
   - «Файл проекту»: the entry's `projectProperties`, and the panel's `overrides`, `incomingDevices`,
     `buySeparately` and `calculated`;
   - the spec links gain `specs/003-panel-properties/`.
-- [ ] T055 Run the final checks: `npx vitest run`, `npx eslint .` and `npm run build`. The user walks
+- [X] T055 Run the final checks: `npx vitest run`, `npx eslint .` and `npm run build`. The user walks
   quickstart Q1–Q5 end to end in `npm run neu:dev`.
 
 ---
